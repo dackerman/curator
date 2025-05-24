@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 )
@@ -34,7 +35,7 @@ func LoadConfig() *Config {
 			Provider: getEnvOrDefault("CURATOR_AI_PROVIDER", "mock"),
 		},
 		FileSystem: FileSystemConfig{
-			Type: getEnvOrDefault("CURATOR_FILESYSTEM_TYPE", "memory"),
+			Type: getEnvOrDefault("CURATOR_FILESYSTEM_TYPE", "local"),
 			Root: getEnvOrDefault("CURATOR_FILESYSTEM_ROOT", "."),
 		},
 	}
@@ -178,6 +179,23 @@ func (c *Config) Validate() error {
 	}
 	
 	return nil
+}
+
+// GetDefaultStoreDir returns the default directory for storing plans and operation logs
+func GetDefaultStoreDir() string {
+	// Check environment variable first
+	if storeDir := os.Getenv("CURATOR_STORE_DIR"); storeDir != "" {
+		return storeDir
+	}
+	
+	// Use user's home directory by default
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		// Fallback to current directory if home dir is not available
+		return ".curator"
+	}
+	
+	return filepath.Join(homeDir, ".curator")
 }
 
 // getEnvOrDefault returns environment variable value or default if not set

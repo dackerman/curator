@@ -444,7 +444,12 @@ func init() {
 	config = curator.LoadConfig()
 	
 	// Initialize components (filesystem will be created per-command based on config)
-	store = curator.NewMemoryOperationStore()
+	var err error
+	store, err = curator.NewFileOperationStore(curator.GetDefaultStoreDir())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create operation store: %v\n", err)
+		os.Exit(1)
+	}
 	reporter = curator.NewReporter()
 	
 	// Add global flags
