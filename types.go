@@ -8,7 +8,7 @@ import (
 // FileSystem abstraction for any filesystem-like backend
 type FileSystem interface {
 	List(path string) ([]FileInfo, error)
-	Read(path string) (io.Reader, error)
+	Read(path string) (io.ReadCloser, error)
 	Move(source, destination string) error
 	CreateFolder(path string) error
 	Delete(path string) error

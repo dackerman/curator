@@ -157,6 +157,15 @@ func (m *MemoryOperationStore) SaveExecutionLog(log *ExecutionLog) error {
 	logCopy.Skipped = make([]SkippedMove, len(log.Skipped))
 	copy(logCopy.Skipped, log.Skipped)
 	
+	// Check if a log for this plan already exists and update it instead of appending
+	for i, existingLog := range m.execLogs {
+		if existingLog.PlanID == log.PlanID {
+			m.execLogs[i] = &logCopy
+			return nil
+		}
+	}
+	
+	// If no existing log found, append a new one
 	m.execLogs = append(m.execLogs, &logCopy)
 	return nil
 }

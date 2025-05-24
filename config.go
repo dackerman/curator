@@ -2,6 +2,7 @@ package curator
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"time"
@@ -63,6 +64,8 @@ func loadGeminiConfig() *GeminiConfig {
 	if maxTokensStr := os.Getenv("GEMINI_MAX_TOKENS"); maxTokensStr != "" {
 		if maxTokens, err := strconv.ParseInt(maxTokensStr, 10, 32); err == nil {
 			config.MaxTokens = int32(maxTokens)
+		} else {
+			log.Printf("Warning: invalid GEMINI_MAX_TOKENS value '%s', using default: %v", maxTokensStr, err)
 		}
 	}
 	
@@ -70,6 +73,8 @@ func loadGeminiConfig() *GeminiConfig {
 	if timeoutStr := os.Getenv("GEMINI_TIMEOUT"); timeoutStr != "" {
 		if timeout, err := time.ParseDuration(timeoutStr); err == nil {
 			config.Timeout = timeout
+		} else {
+			log.Printf("Warning: invalid GEMINI_TIMEOUT value '%s', using default: %v", timeoutStr, err)
 		}
 	}
 	

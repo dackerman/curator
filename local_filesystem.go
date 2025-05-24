@@ -42,16 +42,19 @@ func (lfs *LocalFileSystem) GetRootPath() string {
 	return lfs.rootPath
 }
 
-// resolvePath converts a relative path to an absolute path within the root
+// resolvePath converts a path to an absolute path within the root
 func (lfs *LocalFileSystem) resolvePath(path string) (string, error) {
 	// Clean the path first
 	path = filepath.Clean(path)
 	
-	// Remove leading slash to make it relative
+	// Always strip leading slash to make it relative to root
 	path = strings.TrimPrefix(path, "/")
 	
 	// Join with root path
 	absPath := filepath.Join(lfs.rootPath, path)
+	
+	// Clean the result to normalize path separators and remove redundant elements
+	absPath = filepath.Clean(absPath)
 	
 	// Ensure the resulting path is within the root directory
 	rel, err := filepath.Rel(lfs.rootPath, absPath)
@@ -113,7 +116,7 @@ func (lfs *LocalFileSystem) List(path string) ([]FileInfo, error) {
 }
 
 // Read implements FileSystem.Read
-func (lfs *LocalFileSystem) Read(path string) (io.Reader, error) {
+func (lfs *LocalFileSystem) Read(path string) (io.ReadCloser, error) {
 	absPath, err := lfs.resolvePath(path)
 	if err != nil {
 		return nil, err

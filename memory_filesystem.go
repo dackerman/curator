@@ -97,7 +97,7 @@ func (mfs *MemoryFileSystem) List(path string) ([]FileInfo, error) {
 }
 
 // Read implements FileSystem.Read
-func (mfs *MemoryFileSystem) Read(path string) (io.Reader, error) {
+func (mfs *MemoryFileSystem) Read(path string) (io.ReadCloser, error) {
 	path = filepath.Clean(path)
 	
 	file, exists := mfs.files[path]
@@ -109,7 +109,7 @@ func (mfs *MemoryFileSystem) Read(path string) (io.Reader, error) {
 		return nil, fmt.Errorf("cannot read directory: %s", path)
 	}
 	
-	return strings.NewReader(string(file.content)), nil
+	return io.NopCloser(strings.NewReader(string(file.content))), nil
 }
 
 // Move implements FileSystem.Move
@@ -149,13 +149,20 @@ func (mfs *MemoryFileSystem) Move(source, destination string) error {
 	
 	// If moving a directory, also move all its contents
 	if file.isDir {
+		// First collect all paths that need to be moved to avoid concurrent modification
+		var pathsToMove []string
 		for filePath := range mfs.files {
 			if strings.HasPrefix(filePath, source+"/") {
-				newPath := strings.Replace(filePath, source, destination, 1)
-				mfs.files[newPath] = mfs.files[filePath]
-				mfs.files[newPath].path = newPath
-				delete(mfs.files, filePath)
+				pathsToMove = append(pathsToMove, filePath)
 			}
+		}
+		
+		// Now move the collected paths
+		for _, filePath := range pathsToMove {
+			newPath := strings.Replace(filePath, source, destination, 1)
+			mfs.files[newPath] = mfs.files[filePath]
+			mfs.files[newPath].path = newPath
+			delete(mfs.files, filePath)
 		}
 	}
 	

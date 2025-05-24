@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -67,6 +68,49 @@ func NewGeminiAnalyzer(config *GeminiConfig) (*GeminiAnalyzer, error) {
 // Close closes the Gemini client connection
 func (g *GeminiAnalyzer) Close() error {
 	return g.client.Close()
+}
+
+// extractJSON robustly extracts JSON from AI response text
+func (g *GeminiAnalyzer) extractJSON(response string) (string, error) {
+	// First try to find JSON fenced blocks (```json ... ```)
+	jsonBlockRegex := regexp.MustCompile("(?s)```(?:json)?\\s*(\\{.*?\\})\\s*```")
+	matches := jsonBlockRegex.FindStringSubmatch(response)
+	if len(matches) > 1 {
+		return matches[1], nil
+	}
+	
+	// If no fenced blocks, look for JSON objects by counting braces
+	var jsonStart, jsonEnd int = -1, -1
+	braceCount := 0
+	
+	for i, char := range response {
+		if char == '{' {
+			if braceCount == 0 {
+				jsonStart = i
+			}
+			braceCount++
+		} else if char == '}' {
+			braceCount--
+			if braceCount == 0 && jsonStart != -1 {
+				jsonEnd = i + 1
+				break
+			}
+		}
+	}
+	
+	if jsonStart == -1 || jsonEnd <= jsonStart {
+		return "", fmt.Errorf("no valid JSON found in response")
+	}
+	
+	jsonStr := response[jsonStart:jsonEnd]
+	
+	// Validate that it's actually valid JSON
+	var temp interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &temp); err != nil {
+		return "", fmt.Errorf("extracted text is not valid JSON: %w", err)
+	}
+	
+	return jsonStr, nil
 }
 
 // AnalyzeForReorganization implements AIAnalyzer.AnalyzeForReorganization
@@ -373,15 +417,10 @@ Respond with a JSON object in exactly this format:
 
 // parseReorganizationResponse parses Gemini's response into a ReorganizationPlan
 func (g *GeminiAnalyzer) parseReorganizationResponse(response string) (*ReorganizationPlan, error) {
-	// Extract JSON from response (in case there's extra text)
-	jsonStart := strings.Index(response, "{")
-	jsonEnd := strings.LastIndex(response, "}") + 1
-	
-	if jsonStart == -1 || jsonEnd <= jsonStart {
-		return nil, fmt.Errorf("no valid JSON found in response")
+	jsonStr, err := g.extractJSON(response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract JSON: %w", err)
 	}
-	
-	jsonStr := response[jsonStart:jsonEnd]
 	
 	var result struct {
 		ID        string `json:"id"`
@@ -451,14 +490,10 @@ func (g *GeminiAnalyzer) parseReorganizationResponse(response string) (*Reorgani
 
 // parseDuplicationResponse parses Gemini's response into a DuplicationReport
 func (g *GeminiAnalyzer) parseDuplicationResponse(response string) (*DuplicationReport, error) {
-	jsonStart := strings.Index(response, "{")
-	jsonEnd := strings.LastIndex(response, "}") + 1
-	
-	if jsonStart == -1 || jsonEnd <= jsonStart {
-		return nil, fmt.Errorf("no valid JSON found in response")
+	jsonStr, err := g.extractJSON(response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract JSON: %w", err)
 	}
-	
-	jsonStr := response[jsonStart:jsonEnd]
 	
 	var result struct {
 		ID         string `json:"id"`
@@ -501,14 +536,10 @@ func (g *GeminiAnalyzer) parseDuplicationResponse(response string) (*Duplication
 
 // parseCleanupResponse parses Gemini's response into a CleanupPlan
 func (g *GeminiAnalyzer) parseCleanupResponse(response string) (*CleanupPlan, error) {
-	jsonStart := strings.Index(response, "{")
-	jsonEnd := strings.LastIndex(response, "}") + 1
-	
-	if jsonStart == -1 || jsonEnd <= jsonStart {
-		return nil, fmt.Errorf("no valid JSON found in response")
+	jsonStr, err := g.extractJSON(response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract JSON: %w", err)
 	}
-	
-	jsonStr := response[jsonStart:jsonEnd]
 	
 	var result struct {
 		ID        string `json:"id"`
@@ -553,14 +584,10 @@ func (g *GeminiAnalyzer) parseCleanupResponse(response string) (*CleanupPlan, er
 
 // parseRenamingResponse parses Gemini's response into a RenamingPlan
 func (g *GeminiAnalyzer) parseRenamingResponse(response string) (*RenamingPlan, error) {
-	jsonStart := strings.Index(response, "{")
-	jsonEnd := strings.LastIndex(response, "}") + 1
-	
-	if jsonStart == -1 || jsonEnd <= jsonStart {
-		return nil, fmt.Errorf("no valid JSON found in response")
+	jsonStr, err := g.extractJSON(response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract JSON: %w", err)
 	}
-	
-	jsonStr := response[jsonStart:jsonEnd]
 	
 	var result struct {
 		ID      string `json:"id"`
