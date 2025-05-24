@@ -8,31 +8,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Global components
-var (
-	fs       curator.FileSystem
-	store    curator.OperationStore
-	analyzer curator.AIAnalyzer
-	engine   *curator.ExecutionEngine
-	reporter *curator.Reporter
-	config   *curator.Config
-)
-
-
-func setupSampleFiles(mfs *curator.MemoryFileSystem) {
-	
-	// Add some sample files to demonstrate the functionality
-	mfs.AddFile("/document1.pdf", []byte("Sample PDF content"), "application/pdf")
-	mfs.AddFile("/image1.jpg", []byte("Sample image content"), "image/jpeg")
-	mfs.AddFile("/video1.mp4", []byte("Sample video content"), "video/mp4")
-	mfs.AddFile("/code.go", []byte("package main\n\nfunc main() {}"), "text/plain")
-	mfs.AddFile("/temp_file.tmp", []byte("temporary"), "text/plain")
-	mfs.AddFile("/My Document.pdf", []byte("Another document"), "application/pdf")
-	mfs.AddFile("/Photo With Spaces.jpg", []byte("Photo content"), "image/jpeg")
-	mfs.AddFile("/empty_file.txt", []byte(""), "text/plain")
-	mfs.AddFile("/backup.bak", []byte("backup content"), "text/plain")
-	mfs.AddFile("/Downloads/random_download.zip", []byte("zip content"), "application/zip")
-}
+// Global configuration
+var config curator.Configuration
 
 var rootCmd = &cobra.Command{
 	Use:   "curator",
@@ -48,62 +25,45 @@ var reorganizeCmd = &cobra.Command{
 	Long:  `Scans the filesystem, analyzes structure, and generates a reorganization plan`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
-		_, _ = cmd.Flags().GetString("exclude") // exclude not yet implemented
+		exclude, _ := cmd.Flags().GetString("exclude")
 		
-		// For now, always operate on root "/"
-		// In the future, this could be configurable
-		path := "/"
+		// Apply command-line flag overrides to configuration
+		aiProvider, _ := cmd.Flags().GetString("ai-provider")
+		filesystem, _ := cmd.Flags().GetString("filesystem")
+		root, _ := cmd.Flags().GetString("root")
 		
-		// Get filesystem
-		fs, err := getFileSystem(cmd)
+		finalConfig := curator.OverrideConfiguration(config, aiProvider, filesystem, root)
+		
+		// Create command options
+		opts, err := curator.CreateCommandOptions(finalConfig)
 		if err != nil {
-			return fmt.Errorf("failed to create filesystem: %w", err)
-		}
-		
-		fmt.Printf("Scanning filesystem at %s...\n", path)
-		fmt.Printf("Using %s filesystem...\n", config.FileSystem.Type)
-		
-		// List all files
-		_, err = fs.List(path)
-		if err != nil {
-			return fmt.Errorf("failed to list files: %w", err)
-		}
-		
-		// Get all files recursively
-		allFiles, err := getAllFilesRecursively(fs, path)
-		if err != nil {
-			return fmt.Errorf("failed to get all files: %w", err)
-		}
-		
-		fmt.Printf("Found %d files to analyze...\n", len(allFiles))
-		
-		// Get analyzer
-		analyzer, err := getAnalyzer(cmd)
-		if err != nil {
-			return fmt.Errorf("failed to create analyzer: %w", err)
+			return fmt.Errorf("failed to create command options: %w", err)
 		}
 		
 		// Close analyzer if it supports it (for Gemini)
-		if closer, ok := analyzer.(interface{ Close() error }); ok {
+		if closer, ok := opts.Analyzer.(interface{ Close() error }); ok {
 			defer closer.Close()
 		}
 		
-		fmt.Printf("Using %s AI provider...\n", config.AI.Provider)
+		fmt.Printf("Scanning filesystem at /...\n")
+		fmt.Printf("Using %s filesystem...\n", finalConfig.FileSystem.Type)
 		
-		// Generate reorganization plan
-		plan, err := analyzer.AnalyzeForReorganization(allFiles)
-		if err != nil {
-			return fmt.Errorf("failed to analyze files: %w", err)
+		fmt.Printf("Using %s AI provider...\n", finalConfig.AI.Provider)
+		
+		// Execute reorganize command
+		reorganizeOpts := curator.ReorganizeOptions{
+			DryRun:  dryRun,
+			Exclude: exclude,
 		}
 		
-		// Save the plan
-		if err := store.SavePlan(plan); err != nil {
-			return fmt.Errorf("failed to save plan: %w", err)
+		plan, err := curator.ExecuteReorganize(opts, reorganizeOpts)
+		if err != nil {
+			return err
 		}
 		
 		// Display the plan
 		fmt.Println()
-		fmt.Print(reporter.FormatReorganizationPlan(plan))
+		fmt.Print(opts.Reporter.FormatReorganizationPlan(plan))
 		
 		if !dryRun {
 			fmt.Printf("\nPlan saved with ID: %s\n", plan.ID)
@@ -113,89 +73,31 @@ var reorganizeCmd = &cobra.Command{
 	},
 }
 
-// Helper function to get all files recursively
-func getAllFilesRecursively(fs curator.FileSystem, root string) ([]curator.FileInfo, error) {
-	var allFiles []curator.FileInfo
-	
-	var traverse func(string) error
-	traverse = func(path string) error {
-		files, err := fs.List(path)
-		if err != nil {
-			return err
-		}
-		
-		for _, file := range files {
-			allFiles = append(allFiles, file)
-			if file.IsDir() {
-				if err := traverse(file.Path()); err != nil {
-					return err
-				}
-			}
-		}
-		return nil
-	}
-	
-	return allFiles, traverse(root)
-}
-
-// getAnalyzer creates an analyzer based on configuration and command flags
-func getAnalyzer(cmd *cobra.Command) (curator.AIAnalyzer, error) {
-	// Check if provider is overridden via flag
-	if provider, _ := cmd.Flags().GetString("ai-provider"); provider != "" {
-		config.AI.Provider = provider
-		if provider == "gemini" {
-			config.AI.Gemini = curator.DefaultGeminiConfig()
-			if apiKey := os.Getenv("GEMINI_API_KEY"); apiKey != "" {
-				config.AI.Gemini.APIKey = apiKey
-			}
-		}
-	}
-	
-	// Validate configuration
-	if err := config.Validate(); err != nil {
-		return nil, err
-	}
-	
-	// Create analyzer
-	return config.CreateAnalyzer()
-}
-
-// getFileSystem creates a filesystem based on configuration and command flags
-func getFileSystem(cmd *cobra.Command) (curator.FileSystem, error) {
-	// Check if filesystem type is overridden via flag
-	if fsType, _ := cmd.Flags().GetString("filesystem"); fsType != "" {
-		config.FileSystem.Type = fsType
-	}
-	
-	// Check if root path is overridden via flag
-	if root, _ := cmd.Flags().GetString("root"); root != "" {
-		config.FileSystem.Root = root
-	}
-	
-	// Create filesystem
-	fs, err := config.CreateFileSystem()
-	if err != nil {
-		return nil, err
-	}
-	
-	// If using memory filesystem, add sample files for testing
-	if config.FileSystem.Type == "memory" {
-		setupSampleFiles(fs.(*curator.MemoryFileSystem))
-	}
-	
-	return fs, nil
-}
 
 var listPlansCmd = &cobra.Command{
 	Use:   "list-plans",
 	Short: "List all reorganization plans",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		summaries, err := store.ListPlans()
+		// Apply command-line flag overrides to configuration
+		aiProvider, _ := cmd.Flags().GetString("ai-provider")
+		filesystem, _ := cmd.Flags().GetString("filesystem")
+		root, _ := cmd.Flags().GetString("root")
+		
+		finalConfig := curator.OverrideConfiguration(config, aiProvider, filesystem, root)
+		
+		// Create command options
+		opts, err := curator.CreateCommandOptions(finalConfig)
 		if err != nil {
-			return fmt.Errorf("failed to list plans: %w", err)
+			return fmt.Errorf("failed to create command options: %w", err)
 		}
 		
-		fmt.Print(reporter.FormatPlanSummaries(summaries))
+		// Execute list-plans command
+		summaries, err := curator.ExecuteListPlans(opts)
+		if err != nil {
+			return err
+		}
+		
+		fmt.Print(opts.Reporter.FormatPlanSummaries(summaries))
 		return nil
 	},
 }
@@ -206,12 +108,27 @@ var showPlanCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		planID := args[0]
-		plan, err := store.GetPlan(planID)
+		
+		// Apply command-line flag overrides to configuration
+		aiProvider, _ := cmd.Flags().GetString("ai-provider")
+		filesystem, _ := cmd.Flags().GetString("filesystem")
+		root, _ := cmd.Flags().GetString("root")
+		
+		finalConfig := curator.OverrideConfiguration(config, aiProvider, filesystem, root)
+		
+		// Create command options
+		opts, err := curator.CreateCommandOptions(finalConfig)
 		if err != nil {
-			return fmt.Errorf("failed to get plan: %w", err)
+			return fmt.Errorf("failed to create command options: %w", err)
 		}
 		
-		fmt.Print(reporter.FormatReorganizationPlan(plan))
+		// Execute show-plan command
+		plan, err := curator.ExecuteShowPlan(opts, planID)
+		if err != nil {
+			return err
+		}
+		
+		fmt.Print(opts.Reporter.FormatReorganizationPlan(plan))
 		return nil
 	},
 }
@@ -226,20 +143,32 @@ var applyCmd = &cobra.Command{
 		
 		fmt.Printf("Executing plan %s...\n", planID)
 		
-		// Resume any pending operations first
-		if err := engine.ResumePendingOperations(); err != nil {
-			fmt.Printf("Warning: failed to resume pending operations: %v\n", err)
+		// Apply command-line flag overrides to configuration
+		aiProvider, _ := cmd.Flags().GetString("ai-provider")
+		filesystem, _ := cmd.Flags().GetString("filesystem")
+		root, _ := cmd.Flags().GetString("root")
+		
+		finalConfig := curator.OverrideConfiguration(config, aiProvider, filesystem, root)
+		
+		// Create command options
+		opts, err := curator.CreateCommandOptions(finalConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create command options: %w", err)
 		}
 		
-		// Execute the plan
-		execLog, err := engine.ExecutePlan(planID, failFast)
+		// Execute apply command
+		applyOpts := curator.ApplyOptions{
+			FailFast: failFast,
+		}
+		
+		execLog, err := curator.ExecuteApply(opts, planID, applyOpts)
 		if err != nil {
-			return fmt.Errorf("failed to execute plan: %w", err)
+			return err
 		}
 		
 		// Display execution results
 		fmt.Println()
-		fmt.Print(reporter.FormatExecutionLog(execLog))
+		fmt.Print(opts.Reporter.FormatExecutionLog(execLog))
 		return nil
 	},
 }
@@ -250,12 +179,27 @@ var statusCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		planID := args[0]
-		execLog, err := engine.GetExecutionStatus(planID)
+		
+		// Apply command-line flag overrides to configuration
+		aiProvider, _ := cmd.Flags().GetString("ai-provider")
+		filesystem, _ := cmd.Flags().GetString("filesystem")
+		root, _ := cmd.Flags().GetString("root")
+		
+		finalConfig := curator.OverrideConfiguration(config, aiProvider, filesystem, root)
+		
+		// Create command options
+		opts, err := curator.CreateCommandOptions(finalConfig)
 		if err != nil {
-			return fmt.Errorf("failed to get execution status: %w", err)
+			return fmt.Errorf("failed to create command options: %w", err)
 		}
 		
-		fmt.Print(reporter.FormatExecutionLog(execLog))
+		// Execute status command
+		execLog, err := curator.ExecuteStatus(opts, planID)
+		if err != nil {
+			return err
+		}
+		
+		fmt.Print(opts.Reporter.FormatExecutionLog(execLog))
 		return nil
 	},
 }
@@ -264,12 +208,26 @@ var historyCmd = &cobra.Command{
 	Use:   "history",
 	Short: "Show execution history",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		logs, err := store.GetExecutionHistory()
+		// Apply command-line flag overrides to configuration
+		aiProvider, _ := cmd.Flags().GetString("ai-provider")
+		filesystem, _ := cmd.Flags().GetString("filesystem")
+		root, _ := cmd.Flags().GetString("root")
+		
+		finalConfig := curator.OverrideConfiguration(config, aiProvider, filesystem, root)
+		
+		// Create command options
+		opts, err := curator.CreateCommandOptions(finalConfig)
 		if err != nil {
-			return fmt.Errorf("failed to get execution history: %w", err)
+			return fmt.Errorf("failed to create command options: %w", err)
 		}
 		
-		fmt.Print(reporter.FormatExecutionHistory(logs))
+		// Execute history command
+		logs, err := curator.ExecuteHistory(opts)
+		if err != nil {
+			return err
+		}
+		
+		fmt.Print(opts.Reporter.FormatExecutionHistory(logs))
 		return nil
 	},
 }
@@ -294,38 +252,34 @@ var deduplicateCmd = &cobra.Command{
 		
 		fmt.Println("Scanning for duplicate files...")
 		
-		// Get filesystem
-		fs, err := getFileSystem(cmd)
-		if err != nil {
-			return fmt.Errorf("failed to create filesystem: %w", err)
-		}
+		// Apply command-line flag overrides to configuration
+		aiProvider, _ := cmd.Flags().GetString("ai-provider")
+		filesystem, _ := cmd.Flags().GetString("filesystem")
+		root, _ := cmd.Flags().GetString("root")
 		
-		fmt.Printf("Using %s filesystem...\n", config.FileSystem.Type)
+		finalConfig := curator.OverrideConfiguration(config, aiProvider, filesystem, root)
 		
-		allFiles, err := getAllFilesRecursively(fs, "/")
+		// Create command options
+		opts, err := curator.CreateCommandOptions(finalConfig)
 		if err != nil {
-			return fmt.Errorf("failed to get all files: %w", err)
-		}
-		
-		// Get analyzer
-		analyzer, err := getAnalyzer(cmd)
-		if err != nil {
-			return fmt.Errorf("failed to create analyzer: %w", err)
+			return fmt.Errorf("failed to create command options: %w", err)
 		}
 		
 		// Close analyzer if it supports it (for Gemini)
-		if closer, ok := analyzer.(interface{ Close() error }); ok {
+		if closer, ok := opts.Analyzer.(interface{ Close() error }); ok {
 			defer closer.Close()
 		}
 		
-		fmt.Printf("Using %s AI provider...\n", config.AI.Provider)
+		fmt.Printf("Using %s filesystem...\n", finalConfig.FileSystem.Type)
+		fmt.Printf("Using %s AI provider...\n", finalConfig.AI.Provider)
 		
-		report, err := analyzer.AnalyzeForDuplicates(allFiles)
+		// Execute deduplicate command
+		report, err := curator.ExecuteDeduplicate(opts)
 		if err != nil {
-			return fmt.Errorf("failed to analyze duplicates: %w", err)
+			return err
 		}
 		
-		fmt.Print(reporter.FormatDuplicationReport(report))
+		fmt.Print(opts.Reporter.FormatDuplicationReport(report))
 		return nil
 	},
 }
@@ -338,38 +292,34 @@ var cleanupCmd = &cobra.Command{
 		
 		fmt.Println("Scanning for junk files...")
 		
-		// Get filesystem
-		fs, err := getFileSystem(cmd)
-		if err != nil {
-			return fmt.Errorf("failed to create filesystem: %w", err)
-		}
+		// Apply command-line flag overrides to configuration
+		aiProvider, _ := cmd.Flags().GetString("ai-provider")
+		filesystem, _ := cmd.Flags().GetString("filesystem")
+		root, _ := cmd.Flags().GetString("root")
 		
-		fmt.Printf("Using %s filesystem...\n", config.FileSystem.Type)
+		finalConfig := curator.OverrideConfiguration(config, aiProvider, filesystem, root)
 		
-		allFiles, err := getAllFilesRecursively(fs, "/")
+		// Create command options
+		opts, err := curator.CreateCommandOptions(finalConfig)
 		if err != nil {
-			return fmt.Errorf("failed to get all files: %w", err)
-		}
-		
-		// Get analyzer
-		analyzer, err := getAnalyzer(cmd)
-		if err != nil {
-			return fmt.Errorf("failed to create analyzer: %w", err)
+			return fmt.Errorf("failed to create command options: %w", err)
 		}
 		
 		// Close analyzer if it supports it (for Gemini)
-		if closer, ok := analyzer.(interface{ Close() error }); ok {
+		if closer, ok := opts.Analyzer.(interface{ Close() error }); ok {
 			defer closer.Close()
 		}
 		
-		fmt.Printf("Using %s AI provider...\n", config.AI.Provider)
+		fmt.Printf("Using %s filesystem...\n", finalConfig.FileSystem.Type)
+		fmt.Printf("Using %s AI provider...\n", finalConfig.AI.Provider)
 		
-		plan, err := analyzer.AnalyzeForCleanup(allFiles)
+		// Execute cleanup command
+		plan, err := curator.ExecuteCleanup(opts)
 		if err != nil {
-			return fmt.Errorf("failed to analyze cleanup: %w", err)
+			return err
 		}
 		
-		fmt.Print(reporter.FormatCleanupPlan(plan))
+		fmt.Print(opts.Reporter.FormatCleanupPlan(plan))
 		return nil
 	},
 }
@@ -383,35 +333,31 @@ var renameCmd = &cobra.Command{
 		
 		fmt.Println("Scanning for files to rename...")
 		
-		// Get filesystem
-		fs, err := getFileSystem(cmd)
-		if err != nil {
-			return fmt.Errorf("failed to create filesystem: %w", err)
-		}
+		// Apply command-line flag overrides to configuration
+		aiProvider, _ := cmd.Flags().GetString("ai-provider")
+		filesystem, _ := cmd.Flags().GetString("filesystem")
+		root, _ := cmd.Flags().GetString("root")
 		
-		fmt.Printf("Using %s filesystem...\n", config.FileSystem.Type)
+		finalConfig := curator.OverrideConfiguration(config, aiProvider, filesystem, root)
 		
-		allFiles, err := getAllFilesRecursively(fs, "/")
+		// Create command options
+		opts, err := curator.CreateCommandOptions(finalConfig)
 		if err != nil {
-			return fmt.Errorf("failed to get all files: %w", err)
-		}
-		
-		// Get analyzer
-		analyzer, err := getAnalyzer(cmd)
-		if err != nil {
-			return fmt.Errorf("failed to create analyzer: %w", err)
+			return fmt.Errorf("failed to create command options: %w", err)
 		}
 		
 		// Close analyzer if it supports it (for Gemini)
-		if closer, ok := analyzer.(interface{ Close() error }); ok {
+		if closer, ok := opts.Analyzer.(interface{ Close() error }); ok {
 			defer closer.Close()
 		}
 		
-		fmt.Printf("Using %s AI provider...\n", config.AI.Provider)
+		fmt.Printf("Using %s filesystem...\n", finalConfig.FileSystem.Type)
+		fmt.Printf("Using %s AI provider...\n", finalConfig.AI.Provider)
 		
-		plan, err := analyzer.AnalyzeForRenaming(allFiles)
+		// Execute rename command
+		plan, err := curator.ExecuteRename(opts)
 		if err != nil {
-			return fmt.Errorf("failed to analyze renaming: %w", err)
+			return err
 		}
 		
 		// Simple text output for renaming plan
@@ -441,16 +387,7 @@ var renameCmd = &cobra.Command{
 
 func init() {
 	// Load configuration
-	config = curator.LoadConfig()
-	
-	// Initialize components (filesystem will be created per-command based on config)
-	var err error
-	store, err = curator.NewFileOperationStore(curator.GetDefaultStoreDir())
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create operation store: %v\n", err)
-		os.Exit(1)
-	}
-	reporter = curator.NewReporter()
+	config = curator.LoadConfigurationFromEnvironment()
 	
 	// Add global flags
 	rootCmd.PersistentFlags().String("ai-provider", "", "AI provider to use (mock, gemini) - overrides CURATOR_AI_PROVIDER")

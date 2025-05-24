@@ -2,6 +2,10 @@
 ### *AI-Powered File Organization That Actually Works*
 
 <div align="center">
+<img src="img/owl.png" alt="Curator Owl Mascot" width="200" height="200">
+</div>
+
+<div align="center">
 
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=for-the-badge&logo=go)](https://golang.org)
 [![AI Powered](https://img.shields.io/badge/AI-Gemini%20Powered-4285F4?style=for-the-badge&logo=google)](https://ai.google.dev)
