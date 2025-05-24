@@ -15,6 +15,7 @@ var (
 	analyzer curator.AIAnalyzer
 	engine   *curator.ExecutionEngine
 	reporter *curator.Reporter
+	config   *curator.Config
 )
 
 
@@ -70,6 +71,19 @@ var reorganizeCmd = &cobra.Command{
 		
 		fmt.Printf("Found %d files to analyze...\n", len(allFiles))
 		
+		// Get analyzer
+		analyzer, err := getAnalyzer(cmd)
+		if err != nil {
+			return fmt.Errorf("failed to create analyzer: %w", err)
+		}
+		
+		// Close analyzer if it supports it (for Gemini)
+		if closer, ok := analyzer.(interface{ Close() error }); ok {
+			defer closer.Close()
+		}
+		
+		fmt.Printf("Using %s AI provider...\n", config.AI.Provider)
+		
 		// Generate reorganization plan
 		plan, err := analyzer.AnalyzeForReorganization(allFiles)
 		if err != nil {
@@ -116,6 +130,28 @@ func getAllFilesRecursively(fs curator.FileSystem, root string) ([]curator.FileI
 	}
 	
 	return allFiles, traverse(root)
+}
+
+// getAnalyzer creates an analyzer based on configuration and command flags
+func getAnalyzer(cmd *cobra.Command) (curator.AIAnalyzer, error) {
+	// Check if provider is overridden via flag
+	if provider, _ := cmd.Flags().GetString("ai-provider"); provider != "" {
+		config.AI.Provider = provider
+		if provider == "gemini" {
+			config.AI.Gemini = curator.DefaultGeminiConfig()
+			if apiKey := os.Getenv("GEMINI_API_KEY"); apiKey != "" {
+				config.AI.Gemini.APIKey = apiKey
+			}
+		}
+	}
+	
+	// Validate configuration
+	if err := config.Validate(); err != nil {
+		return nil, err
+	}
+	
+	// Create analyzer
+	return config.CreateAnalyzer()
 }
 
 var listPlansCmd = &cobra.Command{
@@ -231,6 +267,19 @@ var deduplicateCmd = &cobra.Command{
 			return fmt.Errorf("failed to get all files: %w", err)
 		}
 		
+		// Get analyzer
+		analyzer, err := getAnalyzer(cmd)
+		if err != nil {
+			return fmt.Errorf("failed to create analyzer: %w", err)
+		}
+		
+		// Close analyzer if it supports it (for Gemini)
+		if closer, ok := analyzer.(interface{ Close() error }); ok {
+			defer closer.Close()
+		}
+		
+		fmt.Printf("Using %s AI provider...\n", config.AI.Provider)
+		
 		report, err := analyzer.AnalyzeForDuplicates(allFiles)
 		if err != nil {
 			return fmt.Errorf("failed to analyze duplicates: %w", err)
@@ -253,6 +302,19 @@ var cleanupCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("failed to get all files: %w", err)
 		}
+		
+		// Get analyzer
+		analyzer, err := getAnalyzer(cmd)
+		if err != nil {
+			return fmt.Errorf("failed to create analyzer: %w", err)
+		}
+		
+		// Close analyzer if it supports it (for Gemini)
+		if closer, ok := analyzer.(interface{ Close() error }); ok {
+			defer closer.Close()
+		}
+		
+		fmt.Printf("Using %s AI provider...\n", config.AI.Provider)
 		
 		plan, err := analyzer.AnalyzeForCleanup(allFiles)
 		if err != nil {
@@ -277,6 +339,19 @@ var renameCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("failed to get all files: %w", err)
 		}
+		
+		// Get analyzer
+		analyzer, err := getAnalyzer(cmd)
+		if err != nil {
+			return fmt.Errorf("failed to create analyzer: %w", err)
+		}
+		
+		// Close analyzer if it supports it (for Gemini)
+		if closer, ok := analyzer.(interface{ Close() error }); ok {
+			defer closer.Close()
+		}
+		
+		fmt.Printf("Using %s AI provider...\n", config.AI.Provider)
 		
 		plan, err := analyzer.AnalyzeForRenaming(allFiles)
 		if err != nil {
@@ -309,15 +384,20 @@ var renameCmd = &cobra.Command{
 }
 
 func init() {
+	// Load configuration
+	config = curator.LoadConfig()
+	
 	// Initialize components
 	fs = curator.NewMemoryFileSystem()
 	store = curator.NewMemoryOperationStore()
-	analyzer = curator.NewMockAIAnalyzer()
-	engine = curator.NewExecutionEngine(fs, store)
 	reporter = curator.NewReporter()
+	engine = curator.NewExecutionEngine(fs, store)
 	
 	// Add some sample files for testing
 	setupSampleFiles()
+	
+	// Add global flags
+	rootCmd.PersistentFlags().String("ai-provider", "", "AI provider to use (mock, gemini) - overrides CURATOR_AI_PROVIDER")
 	
 	// Global flags
 	reorganizeCmd.Flags().Bool("dry-run", false, "Generate plan without executing")
