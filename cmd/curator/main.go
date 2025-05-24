@@ -31,6 +31,7 @@ var reorganizeCmd = &cobra.Command{
 		aiProvider, _ := cmd.Flags().GetString("ai-provider")
 		filesystem, _ := cmd.Flags().GetString("filesystem")
 		root, _ := cmd.Flags().GetString("root")
+		verbose, _ := cmd.Flags().GetBool("verbose")
 		
 		finalConfig := curator.OverrideConfiguration(config, aiProvider, filesystem, root)
 		finalConfig = curator.PopulateConfigurationFromEnvironment(finalConfig)
@@ -40,6 +41,7 @@ var reorganizeCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("failed to create command options: %w", err)
 		}
+		opts.Verbose = verbose
 		
 		// Close analyzer if it supports it (for Gemini)
 		if closer, ok := opts.Analyzer.(interface{ Close() error }); ok {
@@ -83,6 +85,7 @@ var listPlansCmd = &cobra.Command{
 		aiProvider, _ := cmd.Flags().GetString("ai-provider")
 		filesystem, _ := cmd.Flags().GetString("filesystem")
 		root, _ := cmd.Flags().GetString("root")
+		verbose, _ := cmd.Flags().GetBool("verbose")
 		
 		finalConfig := curator.OverrideConfiguration(config, aiProvider, filesystem, root)
 		finalConfig = curator.PopulateConfigurationFromEnvironment(finalConfig)
@@ -92,6 +95,7 @@ var listPlansCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("failed to create command options: %w", err)
 		}
+		opts.Verbose = verbose
 		
 		// Execute list-plans command
 		summaries, err := curator.ExecuteListPlans(opts)
@@ -115,6 +119,7 @@ var showPlanCmd = &cobra.Command{
 		aiProvider, _ := cmd.Flags().GetString("ai-provider")
 		filesystem, _ := cmd.Flags().GetString("filesystem")
 		root, _ := cmd.Flags().GetString("root")
+		verbose, _ := cmd.Flags().GetBool("verbose")
 		
 		finalConfig := curator.OverrideConfiguration(config, aiProvider, filesystem, root)
 		finalConfig = curator.PopulateConfigurationFromEnvironment(finalConfig)
@@ -124,6 +129,7 @@ var showPlanCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("failed to create command options: %w", err)
 		}
+		opts.Verbose = verbose
 		
 		// Execute show-plan command
 		plan, err := curator.ExecuteShowPlan(opts, planID)
@@ -150,6 +156,7 @@ var applyCmd = &cobra.Command{
 		aiProvider, _ := cmd.Flags().GetString("ai-provider")
 		filesystem, _ := cmd.Flags().GetString("filesystem")
 		root, _ := cmd.Flags().GetString("root")
+		verbose, _ := cmd.Flags().GetBool("verbose")
 		
 		finalConfig := curator.OverrideConfiguration(config, aiProvider, filesystem, root)
 		finalConfig = curator.PopulateConfigurationFromEnvironment(finalConfig)
@@ -159,6 +166,7 @@ var applyCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("failed to create command options: %w", err)
 		}
+		opts.Verbose = verbose
 		
 		// Execute apply command
 		applyOpts := curator.ApplyOptions{
@@ -188,6 +196,7 @@ var statusCmd = &cobra.Command{
 		aiProvider, _ := cmd.Flags().GetString("ai-provider")
 		filesystem, _ := cmd.Flags().GetString("filesystem")
 		root, _ := cmd.Flags().GetString("root")
+		verbose, _ := cmd.Flags().GetBool("verbose")
 		
 		finalConfig := curator.OverrideConfiguration(config, aiProvider, filesystem, root)
 		finalConfig = curator.PopulateConfigurationFromEnvironment(finalConfig)
@@ -197,6 +206,7 @@ var statusCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("failed to create command options: %w", err)
 		}
+		opts.Verbose = verbose
 		
 		// Execute status command
 		execLog, err := curator.ExecuteStatus(opts, planID)
@@ -217,6 +227,7 @@ var historyCmd = &cobra.Command{
 		aiProvider, _ := cmd.Flags().GetString("ai-provider")
 		filesystem, _ := cmd.Flags().GetString("filesystem")
 		root, _ := cmd.Flags().GetString("root")
+		verbose, _ := cmd.Flags().GetBool("verbose")
 		
 		finalConfig := curator.OverrideConfiguration(config, aiProvider, filesystem, root)
 		finalConfig = curator.PopulateConfigurationFromEnvironment(finalConfig)
@@ -226,6 +237,7 @@ var historyCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("failed to create command options: %w", err)
 		}
+		opts.Verbose = verbose
 		
 		// Execute history command
 		logs, err := curator.ExecuteHistory(opts)
@@ -262,6 +274,7 @@ var deduplicateCmd = &cobra.Command{
 		aiProvider, _ := cmd.Flags().GetString("ai-provider")
 		filesystem, _ := cmd.Flags().GetString("filesystem")
 		root, _ := cmd.Flags().GetString("root")
+		verbose, _ := cmd.Flags().GetBool("verbose")
 		
 		finalConfig := curator.OverrideConfiguration(config, aiProvider, filesystem, root)
 		finalConfig = curator.PopulateConfigurationFromEnvironment(finalConfig)
@@ -271,6 +284,7 @@ var deduplicateCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("failed to create command options: %w", err)
 		}
+		opts.Verbose = verbose
 		
 		// Close analyzer if it supports it (for Gemini)
 		if closer, ok := opts.Analyzer.(interface{ Close() error }); ok {
@@ -303,6 +317,7 @@ var cleanupCmd = &cobra.Command{
 		aiProvider, _ := cmd.Flags().GetString("ai-provider")
 		filesystem, _ := cmd.Flags().GetString("filesystem")
 		root, _ := cmd.Flags().GetString("root")
+		verbose, _ := cmd.Flags().GetBool("verbose")
 		
 		finalConfig := curator.OverrideConfiguration(config, aiProvider, filesystem, root)
 		finalConfig = curator.PopulateConfigurationFromEnvironment(finalConfig)
@@ -312,6 +327,7 @@ var cleanupCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("failed to create command options: %w", err)
 		}
+		opts.Verbose = verbose
 		
 		// Close analyzer if it supports it (for Gemini)
 		if closer, ok := opts.Analyzer.(interface{ Close() error }); ok {
@@ -345,6 +361,7 @@ var renameCmd = &cobra.Command{
 		aiProvider, _ := cmd.Flags().GetString("ai-provider")
 		filesystem, _ := cmd.Flags().GetString("filesystem")
 		root, _ := cmd.Flags().GetString("root")
+		verbose, _ := cmd.Flags().GetBool("verbose")
 		
 		finalConfig := curator.OverrideConfiguration(config, aiProvider, filesystem, root)
 		finalConfig = curator.PopulateConfigurationFromEnvironment(finalConfig)
@@ -354,6 +371,7 @@ var renameCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("failed to create command options: %w", err)
 		}
+		opts.Verbose = verbose
 		
 		// Close analyzer if it supports it (for Gemini)
 		if closer, ok := opts.Analyzer.(interface{ Close() error }); ok {
@@ -402,6 +420,7 @@ func init() {
 	rootCmd.PersistentFlags().String("ai-provider", "", "AI provider to use (mock, gemini) - overrides CURATOR_AI_PROVIDER")
 	rootCmd.PersistentFlags().String("filesystem", "", "Filesystem type to use (memory, local, googledrive) - overrides CURATOR_FILESYSTEM_TYPE")
 	rootCmd.PersistentFlags().String("root", "", "Root path for local filesystem - overrides CURATOR_FILESYSTEM_ROOT")
+	rootCmd.PersistentFlags().Bool("verbose", false, "Enable debug logging (shows files found, AI prompts/responses, planned actions)")
 	
 	// Global flags
 	reorganizeCmd.Flags().Bool("dry-run", false, "Generate plan without executing")

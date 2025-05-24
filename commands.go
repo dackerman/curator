@@ -11,6 +11,7 @@ type CommandOptions struct {
 	Store      OperationStore
 	Analyzer   AIAnalyzer
 	Reporter   *Reporter
+	Verbose    bool
 }
 
 // ReorganizeOptions holds options specific to the reorganize command
@@ -32,10 +33,43 @@ func ExecuteReorganize(opts CommandOptions, reorganizeOpts ReorganizeOptions) (*
 		return nil, fmt.Errorf("failed to get all files: %w", err)
 	}
 
+	if opts.Verbose {
+		fmt.Printf("\n🔍 DEBUG: Found %d files:\n", len(allFiles))
+		for i, file := range allFiles {
+			if i >= 20 {
+				fmt.Printf("   ... and %d more files\n", len(allFiles)-20)
+				break
+			}
+			fmt.Printf("   %s (size: %d bytes, type: %s)\n", file.Path(), file.Size(), file.MimeType())
+		}
+		fmt.Println()
+	}
+
 	// Generate reorganization plan using the analyzer
+	if opts.Verbose {
+		fmt.Println("🤖 DEBUG: Sending files to AI analyzer...")
+		SetDebugMode(true) // Enable debug mode for AI operations
+	}
+	
 	plan, err := opts.Analyzer.AnalyzeForReorganization(allFiles)
+	
+	if opts.Verbose {
+		SetDebugMode(false) // Disable debug mode after operation
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to analyze files: %w", err)
+	}
+
+	if opts.Verbose {
+		fmt.Printf("📋 DEBUG: AI generated plan with %d moves:\n", len(plan.Moves))
+		for i, move := range plan.Moves {
+			if i >= 10 {
+				fmt.Printf("   ... and %d more moves\n", len(plan.Moves)-10)
+				break
+			}
+			fmt.Printf("   MOVE: %s → %s (reason: %s)\n", move.Source, move.Destination, move.Reason)
+		}
+		fmt.Println()
 	}
 
 	// Save the plan if not dry run
@@ -70,19 +104,37 @@ func ExecuteShowPlan(opts CommandOptions, planID string) (*ReorganizationPlan, e
 
 // ExecuteApply executes a reorganization plan
 func ExecuteApply(opts CommandOptions, planID string, applyOpts ApplyOptions) (*ExecutionLog, error) {
+	if opts.Verbose {
+		fmt.Printf("🔧 DEBUG: Executing plan %s with fail-fast=%v\n", planID, applyOpts.FailFast)
+	}
+	
 	// Create execution engine
 	engine := NewExecutionEngine(opts.FileSystem, opts.Store)
 	
 	// Resume any pending operations first
 	if err := engine.ResumePendingOperations(); err != nil {
 		// This is just a warning, don't fail the whole operation
-		fmt.Printf("Warning: failed to resume pending operations: %v\n", err)
+		if opts.Verbose {
+			fmt.Printf("⚠️  DEBUG: Failed to resume pending operations: %v\n", err)
+		} else {
+			fmt.Printf("Warning: failed to resume pending operations: %v\n", err)
+		}
+	}
+	
+	if opts.Verbose {
+		fmt.Println("⚡ DEBUG: Starting plan execution...")
 	}
 	
 	// Execute the plan
 	execLog, err := engine.ExecutePlan(planID, applyOpts.FailFast)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute plan: %w", err)
+	}
+	
+	if opts.Verbose {
+		totalOps := len(execLog.Completed) + len(execLog.Failed) + len(execLog.Skipped)
+		fmt.Printf("✅ DEBUG: Plan execution completed - %d completed, %d failed, %d skipped (total: %d)\n", 
+			len(execLog.Completed), len(execLog.Failed), len(execLog.Skipped), totalOps)
 	}
 	
 	return execLog, nil
@@ -119,8 +171,21 @@ func ExecuteDeduplicate(opts CommandOptions) (*DuplicationReport, error) {
 		return nil, fmt.Errorf("failed to get all files: %w", err)
 	}
 	
+	if opts.Verbose {
+		fmt.Printf("\n🔍 DEBUG: Analyzing %d files for duplicates\n", len(allFiles))
+		SetDebugMode(true)
+	}
+	
 	// Analyze for duplicates
 	report, err := opts.Analyzer.AnalyzeForDuplicates(allFiles)
+	
+	if opts.Verbose {
+		SetDebugMode(false)
+		if err == nil {
+			fmt.Printf("📋 DEBUG: Found %d duplicate groups\n\n", len(report.Duplicates))
+		}
+	}
+	
 	if err != nil {
 		return nil, fmt.Errorf("failed to analyze duplicates: %w", err)
 	}
@@ -254,6 +319,7 @@ func CreateCommandOptions(config Configuration) (CommandOptions, error) {
 		Store:      store,
 		Analyzer:   analyzer,
 		Reporter:   reporter,
+		Verbose:    false, // Will be set by CLI layer
 	}, nil
 }
 

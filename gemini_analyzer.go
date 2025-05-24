@@ -13,6 +13,14 @@ import (
 	"golang.org/x/time/rate"
 )
 
+// Package-level verbose flag for debug logging
+var debugMode bool
+
+// SetDebugMode enables or disables debug logging for AI operations
+func SetDebugMode(enabled bool) {
+	debugMode = enabled
+}
+
 // GeminiConfig holds configuration for Gemini AI analyzer
 type GeminiConfig struct {
 	APIKey       string
@@ -117,9 +125,23 @@ func (g *GeminiAnalyzer) extractJSON(response string) (string, error) {
 func (g *GeminiAnalyzer) AnalyzeForReorganization(files []FileInfo) (*ReorganizationPlan, error) {
 	prompt := g.buildReorganizationPrompt(files)
 	
+	if debugMode {
+		fmt.Println("\n📝 DEBUG: AI Prompt sent to Gemini:")
+		fmt.Println("=" + strings.Repeat("=", 50))
+		fmt.Println(prompt)
+		fmt.Println("=" + strings.Repeat("=", 50))
+	}
+	
 	response, err := g.callGemini(prompt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call Gemini for reorganization: %w", err)
+	}
+	
+	if debugMode {
+		fmt.Println("\n💬 DEBUG: AI Response from Gemini:")
+		fmt.Println("=" + strings.Repeat("=", 50))
+		fmt.Println(response)
+		fmt.Println("=" + strings.Repeat("=", 50))
 	}
 	
 	plan, err := g.parseReorganizationResponse(response)
@@ -134,9 +156,23 @@ func (g *GeminiAnalyzer) AnalyzeForReorganization(files []FileInfo) (*Reorganiza
 func (g *GeminiAnalyzer) AnalyzeForDuplicates(files []FileInfo) (*DuplicationReport, error) {
 	prompt := g.buildDuplicationPrompt(files)
 	
+	if debugMode {
+		fmt.Println("\n📝 DEBUG: AI Prompt for duplicate analysis:")
+		fmt.Println("=" + strings.Repeat("=", 50))
+		fmt.Println(prompt)
+		fmt.Println("=" + strings.Repeat("=", 50))
+	}
+	
 	response, err := g.callGemini(prompt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call Gemini for duplicates: %w", err)
+	}
+	
+	if debugMode {
+		fmt.Println("\n💬 DEBUG: AI Response for duplicate analysis:")
+		fmt.Println("=" + strings.Repeat("=", 50))
+		fmt.Println(response)
+		fmt.Println("=" + strings.Repeat("=", 50))
 	}
 	
 	report, err := g.parseDuplicationResponse(response)
