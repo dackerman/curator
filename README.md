@@ -90,24 +90,44 @@ Curator can organize files directly in your Google Drive using AI analysis. Perf
 
 #### 1. Create Google Cloud Project
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project: `curator-file-organizer`
-3. Enable **Google Drive API v3**
+2. Create a new project or select an existing one
+3. Note your project ID for reference
 
-#### 2. Create Service Account  
-1. Navigate to **"IAM & Admin" > "Service Accounts"**
-2. Click **"Create Service Account"**
-3. Name: `curator-service-account`
-4. Download the **JSON key file**
-5. Copy the **service account email** (you'll need this!)
+#### 2. Enable Google Drive API
+1. In the Google Cloud Console, go to **"APIs & Services" > "Library"**
+2. Search for **"Google Drive API"**
+3. Click on **"Google Drive API v3"** and click **"Enable"**
 
-#### 3. Share Folders with Service Account
-1. Open [Google Drive](https://drive.google.com)
-2. **Right-click** the folder you want to organize
-3. Click **"Share"** 
-4. Add your **service account email** with **"Editor"** permissions
-5. Uncheck "Notify people"
+#### 3. Create Service Account
+1. Go to **"APIs & Services" > "Credentials"**
+2. Click **"Create Credentials" > "Service Account"**
+3. Fill in the service account details:
+   - **Name**: `curator-file-organizer` (or similar)
+   - **Description**: `Service account for Curator AI file organizer`
+4. Click **"Create and Continue"**
+5. Skip the optional role assignment (click **"Continue"**)
+6. Click **"Done"**
 
-#### 4. Configure Curator
+#### 4. Generate Service Account Key
+1. In the Credentials page, find your newly created service account
+2. Click on the **service account email**
+3. Go to the **"Keys"** tab
+4. Click **"Add Key" > "Create new key"**
+5. Select **"JSON"** format
+6. Click **"Create"**
+7. **Save the downloaded JSON file securely** - this contains your credentials
+
+#### 5. Share Folders with Service Account ⚠️ **Critical Step**
+**Service accounts have their own Drive space, separate from your personal Google Drive.** To organize your personal files:
+
+1. Go to [Google Drive](https://drive.google.com)
+2. Find the folders you want Curator to organize
+3. **Right-click** and select **"Share"**
+4. Add the **service account email** (found in the JSON key file, looks like: `curator@your-project.iam.gserviceaccount.com`)
+5. Give it **"Editor"** permissions
+6. Click **"Send"**
+
+#### 6. Configure Curator
 ```bash
 # Required: Path to your service account key
 export GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY="/path/to/your-key.json"
@@ -115,14 +135,18 @@ export GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY="/path/to/your-key.json"
 # Required: Set filesystem type
 export CURATOR_FILESYSTEM_TYPE="googledrive"
 
-# Optional: Organize specific folder (get ID from Drive URL)
+# Optional: Organize within a specific shared folder
+# Get folder ID from Google Drive URL: https://drive.google.com/drive/folders/FOLDER_ID_HERE
 export GOOGLE_DRIVE_ROOT_FOLDER_ID="1Abc123xyz789FolderID"
 ```
 
-#### 5. Start Organizing! 
+#### 7. Test the Setup 
 ```bash
-# Test connection
-./curator reorganize --dry-run --filesystem=googledrive
+# Test basic connection
+./curator reorganize --ai-provider=mock --filesystem=googledrive
+
+# Or test with specific folder
+GOOGLE_DRIVE_ROOT_FOLDER_ID="your_folder_id" ./curator reorganize
 
 # AI-powered organization  
 ./curator reorganize --ai-provider=gemini --filesystem=googledrive
