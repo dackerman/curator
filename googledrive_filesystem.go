@@ -2,7 +2,6 @@ package curator
 
 import (
 	"context"
-	"crypto/md5"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -36,6 +35,7 @@ type GoogleDriveFileSystem struct {
 	config  *GoogleDriveConfig
 	service *drive.Service
 	rootID  string // Actual root folder ID to use
+	utils   *FileUtilities
 }
 
 // NewGoogleDriveFileSystem creates a new Google Drive filesystem instance
@@ -69,6 +69,7 @@ func NewGoogleDriveFileSystem(config *GoogleDriveConfig) (*GoogleDriveFileSystem
 		config:  config,
 		service: service,
 		rootID:  rootID,
+		utils:   NewFileUtilities(),
 	}, nil
 }
 
@@ -368,11 +369,10 @@ func (gdfi *googleDriveFileInfo) Hash() string {
 	}
 	
 	// For Google Workspace files, we can't get MD5, so compute a simple hash
-	// based on file ID and modification time
+	// based on file ID and modification time using shared utilities
 	if strings.HasPrefix(gdfi.mimeType, "application/vnd.google-apps.") {
-		hash := md5.New()
-		hash.Write([]byte(gdfi.id + gdfi.modTime.String()))
-		return fmt.Sprintf("%x", hash.Sum(nil))
+		utils := NewFileUtilities()
+		return utils.CreateHash(gdfi.id + gdfi.modTime.String())
 	}
 	
 	return ""

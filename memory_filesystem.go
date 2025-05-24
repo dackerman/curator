@@ -1,7 +1,6 @@
 package curator
 
 import (
-	"crypto/md5"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -13,6 +12,7 @@ import (
 // MemoryFileSystem implements FileSystem interface for testing
 type MemoryFileSystem struct {
 	files map[string]*memoryFile
+	utils *FileUtilities
 }
 
 type memoryFile struct {
@@ -29,6 +29,7 @@ type memoryFile struct {
 func NewMemoryFileSystem() *MemoryFileSystem {
 	return &MemoryFileSystem{
 		files: make(map[string]*memoryFile),
+		utils: NewFileUtilities(),
 	}
 }
 
@@ -240,8 +241,8 @@ func (mfi *memoryFileInfo) Hash() string {
 	if mfi.file.isDir {
 		return ""
 	}
-	hash := md5.Sum(mfi.file.content)
-	return fmt.Sprintf("%x", hash)
+	utils := NewFileUtilities()
+	return utils.ComputeHashFromBytes(mfi.file.content)
 }
 
 func (mfi *memoryFileInfo) MimeType() string {

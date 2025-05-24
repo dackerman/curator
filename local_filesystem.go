@@ -1,11 +1,8 @@
 package curator
 
 import (
-	"crypto/md5"
 	"fmt"
 	"io"
-	"mime"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +12,7 @@ import (
 // LocalFileSystem implements FileSystem interface for the local filesystem
 type LocalFileSystem struct {
 	rootPath string
+	utils    *FileUtilities
 }
 
 // NewLocalFileSystem creates a new local filesystem instance
@@ -34,6 +32,7 @@ func NewLocalFileSystem(rootPath string) (*LocalFileSystem, error) {
 	
 	return &LocalFileSystem{
 		rootPath: rootPath,
+		utils:    NewFileUtilities(),
 	}, nil
 }
 
@@ -255,49 +254,23 @@ func (lfi *localFileInfo) Hash() string {
 		return ""
 	}
 	
-	// Compute MD5 hash of file contents
-	file, err := os.Open(lfi.absPath)
+	// Compute MD5 hash of file contents using shared utilities
+	utils := NewFileUtilities()
+	hash, err := utils.ComputeHashFromFile(lfi.absPath)
 	if err != nil {
 		return ""
 	}
-	defer file.Close()
 	
-	hash := md5.New()
-	if _, err := io.Copy(hash, file); err != nil {
-		return ""
-	}
-	
-	return fmt.Sprintf("%x", hash.Sum(nil))
+	return hash
 }
 
 func (lfi *localFileInfo) MimeType() string {
 	if lfi.isDir {
-		return "inode/directory"
+		utils := NewFileUtilities()
+		return utils.DirectoryMimeType()
 	}
 	
-	// Determine MIME type from file extension
-	ext := filepath.Ext(lfi.name)
-	mimeType := mime.TypeByExtension(ext)
-	
-	if mimeType != "" {
-		return mimeType
-	}
-	
-	// If we can't determine from extension, try to read the file content
-	file, err := os.Open(lfi.absPath)
-	if err != nil {
-		return "application/octet-stream"
-	}
-	defer file.Close()
-	
-	// Read first 512 bytes to detect content type
-	buffer := make([]byte, 512)
-	n, err := file.Read(buffer)
-	if err != nil && err != io.EOF {
-		return "application/octet-stream"
-	}
-	
-	// Use Go's content detection
-	contentType := http.DetectContentType(buffer[:n])
-	return contentType
+	// Use shared utilities for MIME type detection
+	utils := NewFileUtilities()
+	return utils.DetectMimeType(lfi.absPath)
 }
