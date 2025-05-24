@@ -92,9 +92,14 @@ func loadGeminiConfig() *GeminiConfig {
 func loadGoogleDriveConfig() *GoogleDriveConfig {
 	config := DefaultGoogleDriveConfig()
 	
-	// Load service account key file path from environment
-	if keyFile := os.Getenv("GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY"); keyFile != "" {
-		config.ServiceAccountKey = keyFile
+	// Load OAuth2 credentials file path from environment
+	if credFile := os.Getenv("GOOGLE_DRIVE_OAUTH_CREDENTIALS"); credFile != "" {
+		config.OAuth2CredentialsFile = credFile
+	}
+	
+	// Load OAuth2 token file path from environment (optional)
+	if tokenFile := os.Getenv("GOOGLE_DRIVE_OAUTH_TOKENS"); tokenFile != "" {
+		config.OAuth2TokenFile = tokenFile
 	}
 	
 	// Load root folder ID from environment
@@ -171,8 +176,8 @@ func (c *Config) Validate() error {
 		if c.FileSystem.GoogleDrive == nil {
 			return fmt.Errorf("Google Drive configuration is required when filesystem is 'googledrive'")
 		}
-		if c.FileSystem.GoogleDrive.ServiceAccountKey == "" {
-			return fmt.Errorf("Google Drive service account key file is required (set GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY environment variable)")
+		if c.FileSystem.GoogleDrive.OAuth2CredentialsFile == "" {
+			return fmt.Errorf("Google Drive OAuth2 credentials file is required (set GOOGLE_DRIVE_OAUTH_CREDENTIALS environment variable)")
 		}
 	default:
 		return fmt.Errorf("unknown filesystem type: %s (valid options: memory, local, googledrive)", c.FileSystem.Type)

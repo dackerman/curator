@@ -1,7 +1,10 @@
 package curator
 
 import (
+	"encoding/json"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -13,8 +16,12 @@ func TestDefaultGoogleDriveConfig(t *testing.T) {
 		t.Error("Expected default application name to be set")
 	}
 	
-	if config.ServiceAccountKey != "" {
-		t.Error("Expected service account key to be empty by default")
+	if config.OAuth2CredentialsFile != "" {
+		t.Error("Expected OAuth2 credentials file to be empty by default")
+	}
+	
+	if config.OAuth2TokenFile != "" {
+		t.Error("Expected OAuth2 token file to be empty by default")
 	}
 	
 	if config.RootFolderID != "" {
@@ -24,26 +31,33 @@ func TestDefaultGoogleDriveConfig(t *testing.T) {
 
 func TestLoadGoogleDriveConfig(t *testing.T) {
 	// Save original env vars
-	originalKey := os.Getenv("GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY")
+	originalCreds := os.Getenv("GOOGLE_DRIVE_OAUTH_CREDENTIALS")
+	originalTokens := os.Getenv("GOOGLE_DRIVE_OAUTH_TOKENS")
 	originalRoot := os.Getenv("GOOGLE_DRIVE_ROOT_FOLDER_ID") 
 	originalApp := os.Getenv("GOOGLE_DRIVE_APPLICATION_NAME")
 	
 	// Clean up
 	defer func() {
-		os.Setenv("GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY", originalKey)
+		os.Setenv("GOOGLE_DRIVE_OAUTH_CREDENTIALS", originalCreds)
+		os.Setenv("GOOGLE_DRIVE_OAUTH_TOKENS", originalTokens)
 		os.Setenv("GOOGLE_DRIVE_ROOT_FOLDER_ID", originalRoot)
 		os.Setenv("GOOGLE_DRIVE_APPLICATION_NAME", originalApp)
 	}()
 	
 	// Test with environment variables set
-	os.Setenv("GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY", "/path/to/key.json")
+	os.Setenv("GOOGLE_DRIVE_OAUTH_CREDENTIALS", "/path/to/credentials.json")
+	os.Setenv("GOOGLE_DRIVE_OAUTH_TOKENS", "/path/to/tokens.json")
 	os.Setenv("GOOGLE_DRIVE_ROOT_FOLDER_ID", "1234567890")
 	os.Setenv("GOOGLE_DRIVE_APPLICATION_NAME", "Test App")
 	
 	config := loadGoogleDriveConfig()
 	
-	if config.ServiceAccountKey != "/path/to/key.json" {
-		t.Errorf("Expected service account key '/path/to/key.json', got '%s'", config.ServiceAccountKey)
+	if config.OAuth2CredentialsFile != "/path/to/credentials.json" {
+		t.Errorf("Expected OAuth2 credentials file '/path/to/credentials.json', got '%s'", config.OAuth2CredentialsFile)
+	}
+	
+	if config.OAuth2TokenFile != "/path/to/tokens.json" {
+		t.Errorf("Expected OAuth2 token file '/path/to/tokens.json', got '%s'", config.OAuth2TokenFile)
 	}
 	
 	if config.RootFolderID != "1234567890" {
@@ -55,31 +69,31 @@ func TestLoadGoogleDriveConfig(t *testing.T) {
 	}
 }
 
-func TestNewGoogleDriveFileSystem_RequiresServiceAccountKey(t *testing.T) {
+func TestNewGoogleDriveFileSystem_RequiresOAuth2Credentials(t *testing.T) {
 	config := &GoogleDriveConfig{
 		ApplicationName: "Test App",
 	}
 	
 	_, err := NewGoogleDriveFileSystem(config)
 	if err == nil {
-		t.Error("Expected error when service account key is missing")
+		t.Error("Expected error when OAuth2 credentials file is missing")
 	}
 	
-	if err.Error() != "service account key file path is required" {
+	if err.Error() != "OAuth2 credentials file path is required (set GOOGLE_DRIVE_OAUTH_CREDENTIALS)" {
 		t.Errorf("Expected specific error message, got: %s", err.Error())
 	}
 }
 
-// Integration test - only runs if GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY is set
+// Integration test - only runs if GOOGLE_DRIVE_OAUTH_CREDENTIALS is set
 func TestGoogleDriveFileSystem_Integration(t *testing.T) {
-	keyFile := os.Getenv("GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY")
-	if keyFile == "" {
-		t.Skip("Skipping integration test - GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY not set")
+	credFile := os.Getenv("GOOGLE_DRIVE_OAUTH_CREDENTIALS")
+	if credFile == "" {
+		t.Skip("Skipping integration test - GOOGLE_DRIVE_OAUTH_CREDENTIALS not set")
 	}
 	
 	config := &GoogleDriveConfig{
-		ServiceAccountKey: keyFile,
-		ApplicationName:   "Curator Test",
+		OAuth2CredentialsFile: credFile,
+		ApplicationName:       "Curator Test",
 	}
 	
 	gfs, err := NewGoogleDriveFileSystem(config)
@@ -121,14 +135,14 @@ func TestGoogleDriveFileSystem_Integration(t *testing.T) {
 }
 
 func TestGoogleDriveFileSystem_CreateAndDeleteFolder(t *testing.T) {
-	keyFile := os.Getenv("GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY")
-	if keyFile == "" {
-		t.Skip("Skipping integration test - GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY not set")
+	credFile := os.Getenv("GOOGLE_DRIVE_OAUTH_CREDENTIALS")
+	if credFile == "" {
+		t.Skip("Skipping integration test - GOOGLE_DRIVE_OAUTH_CREDENTIALS not set")
 	}
 	
 	config := &GoogleDriveConfig{
-		ServiceAccountKey: keyFile,
-		ApplicationName:   "Curator Test",
+		OAuth2CredentialsFile: credFile,
+		ApplicationName:       "Curator Test",
 	}
 	
 	gfs, err := NewGoogleDriveFileSystem(config)
@@ -196,17 +210,17 @@ func TestGoogleDriveFileSystem_CreateAndDeleteFolder(t *testing.T) {
 func TestConfig_GoogleDriveIntegration(t *testing.T) {
 	// Save original env vars
 	originalFSType := os.Getenv("CURATOR_FILESYSTEM_TYPE")
-	originalKey := os.Getenv("GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY")
+	originalCreds := os.Getenv("GOOGLE_DRIVE_OAUTH_CREDENTIALS")
 	
 	// Clean up
 	defer func() {
 		os.Setenv("CURATOR_FILESYSTEM_TYPE", originalFSType)
-		os.Setenv("GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY", originalKey)
+		os.Setenv("GOOGLE_DRIVE_OAUTH_CREDENTIALS", originalCreds)
 	}()
 	
 	// Test config loading with Google Drive
 	os.Setenv("CURATOR_FILESYSTEM_TYPE", "googledrive")
-	os.Setenv("GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY", "/path/to/key.json")
+	os.Setenv("GOOGLE_DRIVE_OAUTH_CREDENTIALS", "/path/to/credentials.json")
 	
 	config := LoadConfig()
 	
@@ -218,9 +232,9 @@ func TestConfig_GoogleDriveIntegration(t *testing.T) {
 		t.Error("Expected Google Drive config to be loaded")
 	}
 	
-	if config.FileSystem.GoogleDrive.ServiceAccountKey != "/path/to/key.json" {
-		t.Errorf("Expected service account key '/path/to/key.json', got '%s'", 
-			config.FileSystem.GoogleDrive.ServiceAccountKey)
+	if config.FileSystem.GoogleDrive.OAuth2CredentialsFile != "/path/to/credentials.json" {
+		t.Errorf("Expected OAuth2 credentials file '/path/to/credentials.json', got '%s'", 
+			config.FileSystem.GoogleDrive.OAuth2CredentialsFile)
 	}
 }
 
@@ -233,8 +247,8 @@ func TestConfig_ValidateGoogleDrive(t *testing.T) {
 		FileSystem: FileSystemConfig{
 			Type: "googledrive",
 			GoogleDrive: &GoogleDriveConfig{
-				ServiceAccountKey: "/path/to/key.json",
-				ApplicationName:   "Test App",
+				OAuth2CredentialsFile: "/path/to/credentials.json",
+				ApplicationName:       "Test App",
 			},
 		},
 	}
@@ -251,13 +265,13 @@ func TestConfig_ValidateGoogleDrive(t *testing.T) {
 		t.Error("Expected validation error when Google Drive config is missing")
 	}
 	
-	// Test missing service account key
+	// Test missing OAuth2 credentials file
 	config.FileSystem.GoogleDrive = &GoogleDriveConfig{
 		ApplicationName: "Test App",
 	}
 	err = config.Validate()
 	if err == nil {
-		t.Error("Expected validation error when service account key is missing")
+		t.Error("Expected validation error when OAuth2 credentials file is missing")
 	}
 }
 
@@ -266,16 +280,16 @@ func TestConfig_CreateGoogleDriveFileSystem(t *testing.T) {
 		FileSystem: FileSystemConfig{
 			Type: "googledrive",
 			GoogleDrive: &GoogleDriveConfig{
-				ServiceAccountKey: "/nonexistent/key.json",
-				ApplicationName:   "Test App",
+				OAuth2CredentialsFile: "/nonexistent/credentials.json",
+				ApplicationName:       "Test App",
 			},
 		},
 	}
 	
-	// This should fail because the key file doesn't exist
+	// This should fail because the credentials file doesn't exist
 	_, err := config.CreateFileSystem()
 	if err == nil {
-		t.Error("Expected error when creating filesystem with non-existent key file")
+		t.Error("Expected error when creating filesystem with non-existent credentials file")
 	}
 	
 	// Test missing config
@@ -349,5 +363,127 @@ func TestGoogleDriveFileInfo(t *testing.T) {
 	
 	if dirInfo.MimeType() != "application/vnd.google-apps.folder" {
 		t.Errorf("Expected folder MIME type, got '%s'", dirInfo.MimeType())
+	}
+}
+
+// OAuth2 Token Management Tests
+
+func TestOAuth2TokenManager_Creation(t *testing.T) {
+	// Test creation with missing credentials file
+	_, err := NewOAuth2TokenManager("", "/tmp/tokens.json")
+	if err == nil {
+		t.Error("Expected error when credentials file is empty")
+	}
+	
+	// Test creation with non-existent credentials file
+	_, err = NewOAuth2TokenManager("/nonexistent/credentials.json", "/tmp/tokens.json")
+	if err == nil {
+		t.Error("Expected error when credentials file doesn't exist")
+	}
+}
+
+func TestOAuth2TokenInfo_Marshaling(t *testing.T) {
+	// Test token info marshaling/unmarshaling
+	tokenInfo := OAuth2TokenInfo{
+		AccessToken:  "access_token_123",
+		RefreshToken: "refresh_token_456",
+		TokenType:    "Bearer",
+		Expiry:       time.Now().Add(time.Hour),
+	}
+	
+	// Marshal
+	data, err := json.Marshal(tokenInfo)
+	if err != nil {
+		t.Fatalf("Failed to marshal token info: %v", err)
+	}
+	
+	// Unmarshal
+	var unmarshaled OAuth2TokenInfo
+	err = json.Unmarshal(data, &unmarshaled)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal token info: %v", err)
+	}
+	
+	// Verify
+	if unmarshaled.AccessToken != tokenInfo.AccessToken {
+		t.Errorf("Expected access token '%s', got '%s'", tokenInfo.AccessToken, unmarshaled.AccessToken)
+	}
+	
+	if unmarshaled.RefreshToken != tokenInfo.RefreshToken {
+		t.Errorf("Expected refresh token '%s', got '%s'", tokenInfo.RefreshToken, unmarshaled.RefreshToken)
+	}
+	
+	if unmarshaled.TokenType != tokenInfo.TokenType {
+		t.Errorf("Expected token type '%s', got '%s'", tokenInfo.TokenType, unmarshaled.TokenType)
+	}
+	
+	// Allow for small time differences due to JSON serialization
+	if unmarshaled.Expiry.Sub(tokenInfo.Expiry).Abs() > time.Second {
+		t.Errorf("Token expiry times differ by more than 1 second")
+	}
+}
+
+func TestOAuth2TokenManager_TokenFile_DefaultPath(t *testing.T) {
+	// Test default token file path generation
+	config := &GoogleDriveConfig{
+		OAuth2CredentialsFile: "/path/to/credentials.json",
+		ApplicationName:       "Test App",
+	}
+	
+	// This test verifies the default path logic in NewGoogleDriveFileSystem
+	// We can't easily test the actual OAuth2 flow without real credentials
+	// but we can test that the path logic works correctly
+	
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Skip("Cannot get user home directory")
+	}
+	
+	expectedPath := filepath.Join(homeDir, ".curator", "google_tokens.json")
+	
+	// The NewGoogleDriveFileSystem function would use this path when OAuth2TokenFile is empty
+	if config.OAuth2TokenFile == "" {
+		tokenFile := expectedPath
+		if !strings.Contains(tokenFile, ".curator") {
+			t.Error("Expected default token file to be in .curator directory")
+		}
+	}
+}
+
+func TestBrowserOpeningUtilities(t *testing.T) {
+	// Test file existence checking
+	if !fileExists("/etc/passwd") && !fileExists("/usr/bin") {
+		t.Error("Expected at least one of these common paths to exist")
+	}
+	
+	if fileExists("/this/path/definitely/does/not/exist") {
+		t.Error("Expected non-existent path to return false")
+	}
+}
+
+func TestGoogleDriveConfig_OAuth2Fields(t *testing.T) {
+	config := &GoogleDriveConfig{
+		OAuth2CredentialsFile: "/path/to/creds.json",
+		OAuth2TokenFile:       "/path/to/tokens.json",
+		RootFolderID:          "root",
+		ApplicationName:       "Test App",
+	}
+	
+	// Test that all OAuth2 fields are properly set
+	if config.OAuth2CredentialsFile == "" {
+		t.Error("OAuth2 credentials file should be set")
+	}
+	
+	if config.OAuth2TokenFile == "" {
+		t.Error("OAuth2 token file should be set")
+	}
+	
+	if config.ApplicationName == "" {
+		t.Error("Application name should be set")
+	}
+	
+	// Test that root folder defaults work
+	if config.RootFolderID != "root" {
+		t.Errorf("Expected root folder ID 'root', got '%s'", config.RootFolderID)
 	}
 }

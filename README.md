@@ -72,11 +72,11 @@ export CURATOR_AI_PROVIDER="gemini"
 
 ### With Google Drive (Cloud Storage)
 ```bash
-# Set up service account authentication
-export GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY="/path/to/service-account-key.json"
+# Set up OAuth2 authentication for your personal Google Drive
+export GOOGLE_DRIVE_OAUTH_CREDENTIALS="/path/to/oauth-credentials.json"
 export CURATOR_FILESYSTEM_TYPE="googledrive"
 
-# Organize your Google Drive files with AI
+# Organize your entire Google Drive with AI (browser auth on first run)
 ./curator reorganize --ai-provider=gemini --filesystem=googledrive
 ```
 
@@ -84,7 +84,7 @@ export CURATOR_FILESYSTEM_TYPE="googledrive"
 
 ## 🌐 Google Drive Integration
 
-Curator can organize files directly in your Google Drive using AI analysis. Perfect for cleaning up cloud storage!
+Curator can organize files directly in your **entire personal Google Drive** using AI analysis. Perfect for cleaning up cloud storage with full access to all your files!
 
 ### 🔧 Quick Setup
 
@@ -98,58 +98,53 @@ Curator can organize files directly in your Google Drive using AI analysis. Perf
 2. Search for **"Google Drive API"**
 3. Click on **"Google Drive API v3"** and click **"Enable"**
 
-#### 3. Create Service Account
+#### 3. Create OAuth2 Credentials
 1. Go to **"APIs & Services" > "Credentials"**
-2. Click **"Create Credentials" > "Service Account"**
-3. Fill in the service account details:
-   - **Name**: `curator-file-organizer` (or similar)
-   - **Description**: `Service account for Curator AI file organizer`
-4. Click **"Create and Continue"**
-5. Skip the optional role assignment (click **"Continue"**)
-6. Click **"Done"**
-
-#### 4. Generate Service Account Key
-1. In the Credentials page, find your newly created service account
-2. Click on the **service account email**
-3. Go to the **"Keys"** tab
-4. Click **"Add Key" > "Create new key"**
-5. Select **"JSON"** format
+2. Click **"Create Credentials" > "OAuth 2.0 Client IDs"**
+3. If prompted, configure the OAuth consent screen:
+   - Choose **"External"** user type
+   - Fill in required fields (App name: "Curator File Organizer")
+   - Add your email to test users
+4. For application type, select **"Desktop application"**
+5. Name it `curator-oauth-client` (or similar)
 6. Click **"Create"**
-7. **Save the downloaded JSON file securely** - this contains your credentials
+7. **Download the JSON credentials file** - this contains your OAuth2 configuration
 
-#### 5. Share Folders with Service Account ⚠️ **Critical Step**
-**Service accounts have their own Drive space, separate from your personal Google Drive.** To organize your personal files:
-
-1. Go to [Google Drive](https://drive.google.com)
-2. Find the folders you want Curator to organize
-3. **Right-click** and select **"Share"**
-4. Add the **service account email** (found in the JSON key file, looks like: `curator@your-project.iam.gserviceaccount.com`)
-5. Give it **"Editor"** permissions
-6. Click **"Send"**
-
-#### 6. Configure Curator
+#### 4. Configure Curator
 ```bash
-# Required: Path to your service account key
-export GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY="/path/to/your-key.json"
+# Required: Path to your OAuth2 credentials file
+export GOOGLE_DRIVE_OAUTH_CREDENTIALS="/path/to/oauth-credentials.json"
 
 # Required: Set filesystem type
 export CURATOR_FILESYSTEM_TYPE="googledrive"
 
-# Optional: Organize within a specific shared folder
-# Get folder ID from Google Drive URL: https://drive.google.com/drive/folders/FOLDER_ID_HERE
+# Optional: Store tokens in custom location (defaults to ~/.curator/google_tokens.json)
+export GOOGLE_DRIVE_OAUTH_TOKENS="/path/to/tokens.json"
+
+# Optional: Organize within a specific folder (defaults to entire Drive)
 export GOOGLE_DRIVE_ROOT_FOLDER_ID="1Abc123xyz789FolderID"
 ```
 
-#### 7. Test the Setup 
+#### 5. First-Time Authentication
 ```bash
-# Test basic connection
+# Run Curator - browser will open automatically for Google authorization
 ./curator reorganize --ai-provider=mock --filesystem=googledrive
+```
 
-# Or test with specific folder
-GOOGLE_DRIVE_ROOT_FOLDER_ID="your_folder_id" ./curator reorganize
+**What happens:**
+1. 🌐 Your browser opens to Google's authorization page
+2. 🔐 You log in with your Google account 
+3. ✅ You grant Curator permission to access your Drive
+4. 💾 Curator saves authentication tokens locally
+5. 🚀 File analysis begins immediately
 
-# AI-powered organization  
+#### 6. Subsequent Usage (No Browser Needed)
+```bash
+# Future runs work seamlessly without browser popups
 ./curator reorganize --ai-provider=gemini --filesystem=googledrive
+
+# Organize with specific folder 
+GOOGLE_DRIVE_ROOT_FOLDER_ID="your_folder_id" ./curator reorganize
 
 # Other operations work too!
 ./curator deduplicate --filesystem=googledrive
@@ -162,17 +157,19 @@ GOOGLE_DRIVE_ROOT_FOLDER_ID="your_folder_id" ./curator reorganize
 
 | Error | Solution |
 |-------|----------|
-| `service account key file path is required` | Set `GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY` |
-| `failed to create Drive service` | Check key file path exists |
-| `Error 404: File not found` | Verify `GOOGLE_DRIVE_ROOT_FOLDER_ID` |
-| `Error 403: Insufficient Permission` | Share folder with service account as **Editor** |
+| `OAuth2 credentials file path is required` | Set `GOOGLE_DRIVE_OAUTH_CREDENTIALS` |
+| `failed to read OAuth2 credentials file` | Check credentials file path exists |
+| `Browser doesn't open automatically` | Copy the displayed URL and open manually |
+| `Error 404: File not found` | Verify `GOOGLE_DRIVE_ROOT_FOLDER_ID` if set |
+| `Token refresh failed` | Delete `~/.curator/google_tokens.json` and re-authenticate |
 
 ### 🔒 Security Notes
 
-- **Service accounts** have their own Drive space (separate from your personal files)
-- You must **explicitly share** folders to give access
-- Files are **moved to trash** (not permanently deleted)
-- Store key files securely: `chmod 600 /path/to/key.json`
+- **OAuth2 authentication** gives access to your **entire personal Google Drive**
+- **Tokens stored locally** in `~/.curator/google_tokens.json` (secure file permissions)
+- Files are **moved to trash** (not permanently deleted) for safety
+- **Revoke access anytime** in [Google Account Security](https://myaccount.google.com/permissions)
+- Store credentials securely: `chmod 600 /path/to/oauth-credentials.json`
 
 ### ✅ What Can Be Organized
 
@@ -380,8 +377,9 @@ export CURATOR_FILESYSTEM_TYPE="local"     # or "memory" or "googledrive"
 export CURATOR_FILESYSTEM_ROOT="/path/to/organize"
 
 # Google Drive Configuration (when using googledrive)
-export GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY="/path/to/service-account-key.json"
-export GOOGLE_DRIVE_ROOT_FOLDER_ID="folder-id"  # Optional
+export GOOGLE_DRIVE_OAUTH_CREDENTIALS="/path/to/oauth-credentials.json"
+export GOOGLE_DRIVE_OAUTH_TOKENS="/path/to/tokens.json"  # Optional, defaults to ~/.curator/google_tokens.json
+export GOOGLE_DRIVE_ROOT_FOLDER_ID="folder-id"  # Optional, defaults to entire Drive
 ```
 
 ### CLI Flags

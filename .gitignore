@@ -37,3 +37,7 @@ Thumbs.db
 # Service account keys (security)
 *service-account*.json
 *-key.json
+client_secret_*.json
+
+# Environment variables
+.env
