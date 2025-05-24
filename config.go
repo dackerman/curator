@@ -22,8 +22,9 @@ type AIConfig struct {
 
 // FileSystemConfig holds filesystem-related configuration
 type FileSystemConfig struct {
-	Type string `json:"type"` // "memory" or "local"
-	Root string `json:"root"` // Root path for local filesystem
+	Type        string                `json:"type"`        // "memory", "local", or "googledrive"
+	Root        string                `json:"root"`        // Root path for local filesystem
+	GoogleDrive *GoogleDriveConfig    `json:"googledrive,omitempty"`
 }
 
 // LoadConfig loads configuration from environment variables and defaults
@@ -41,6 +42,11 @@ func LoadConfig() *Config {
 	// Load Gemini config if provider is gemini
 	if config.AI.Provider == "gemini" {
 		config.AI.Gemini = loadGeminiConfig()
+	}
+	
+	// Load Google Drive config if filesystem is googledrive
+	if config.FileSystem.Type == "googledrive" {
+		config.FileSystem.GoogleDrive = loadGoogleDriveConfig()
 	}
 	
 	return config
@@ -81,6 +87,28 @@ func loadGeminiConfig() *GeminiConfig {
 	return config
 }
 
+// loadGoogleDriveConfig loads Google Drive configuration from environment
+func loadGoogleDriveConfig() *GoogleDriveConfig {
+	config := DefaultGoogleDriveConfig()
+	
+	// Load service account key file path from environment
+	if keyFile := os.Getenv("GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY"); keyFile != "" {
+		config.ServiceAccountKey = keyFile
+	}
+	
+	// Load root folder ID from environment
+	if rootID := os.Getenv("GOOGLE_DRIVE_ROOT_FOLDER_ID"); rootID != "" {
+		config.RootFolderID = rootID
+	}
+	
+	// Load application name from environment
+	if appName := os.Getenv("GOOGLE_DRIVE_APPLICATION_NAME"); appName != "" {
+		config.ApplicationName = appName
+	}
+	
+	return config
+}
+
 // CreateAnalyzer creates an AI analyzer based on configuration
 func (c *Config) CreateAnalyzer() (AIAnalyzer, error) {
 	switch c.AI.Provider {
@@ -103,6 +131,11 @@ func (c *Config) CreateFileSystem() (FileSystem, error) {
 		return NewMemoryFileSystem(), nil
 	case "local":
 		return NewLocalFileSystem(c.FileSystem.Root)
+	case "googledrive":
+		if c.FileSystem.GoogleDrive == nil {
+			return nil, fmt.Errorf("Google Drive configuration is required when filesystem is 'googledrive'")
+		}
+		return NewGoogleDriveFileSystem(c.FileSystem.GoogleDrive)
 	default:
 		return nil, fmt.Errorf("unknown filesystem type: %s", c.FileSystem.Type)
 	}
@@ -133,8 +166,15 @@ func (c *Config) Validate() error {
 		if c.FileSystem.Root == "" {
 			return fmt.Errorf("local filesystem root path is required")
 		}
+	case "googledrive":
+		if c.FileSystem.GoogleDrive == nil {
+			return fmt.Errorf("Google Drive configuration is required when filesystem is 'googledrive'")
+		}
+		if c.FileSystem.GoogleDrive.ServiceAccountKey == "" {
+			return fmt.Errorf("Google Drive service account key file is required (set GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY environment variable)")
+		}
 	default:
-		return fmt.Errorf("unknown filesystem type: %s (valid options: memory, local)", c.FileSystem.Type)
+		return fmt.Errorf("unknown filesystem type: %s (valid options: memory, local, googledrive)", c.FileSystem.Type)
 	}
 	
 	return nil

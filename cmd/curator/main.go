@@ -449,7 +449,7 @@ func init() {
 	
 	// Add global flags
 	rootCmd.PersistentFlags().String("ai-provider", "", "AI provider to use (mock, gemini) - overrides CURATOR_AI_PROVIDER")
-	rootCmd.PersistentFlags().String("filesystem", "", "Filesystem type to use (memory, local) - overrides CURATOR_FILESYSTEM_TYPE")
+	rootCmd.PersistentFlags().String("filesystem", "", "Filesystem type to use (memory, local, googledrive) - overrides CURATOR_FILESYSTEM_TYPE")
 	rootCmd.PersistentFlags().String("root", "", "Root path for local filesystem - overrides CURATOR_FILESYSTEM_ROOT")
 	
 	// Global flags

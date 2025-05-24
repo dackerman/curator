@@ -66,6 +66,7 @@ type AIAnalyzer interface {
 ### Filesystem Support
 - **Memory Filesystem**: In-memory testing with sample files
 - **Local Filesystem**: Real file operations with security safeguards
+- **Google Drive**: Cloud filesystem support with service account authentication
 - **Configurable**: Runtime selection via CLI flags or environment variables
 
 ### AI Providers
@@ -97,8 +98,13 @@ export GEMINI_MAX_TOKENS="8192"
 export GEMINI_TIMEOUT="30s"
 
 # Filesystem Configuration
-export CURATOR_FILESYSTEM_TYPE="local"  # or "memory"
+export CURATOR_FILESYSTEM_TYPE="local"  # or "memory" or "googledrive"
 export CURATOR_FILESYSTEM_ROOT="/path/to/organize"
+
+# Google Drive Configuration (when using googledrive filesystem)
+export GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY="/path/to/service-account-key.json"
+export GOOGLE_DRIVE_ROOT_FOLDER_ID="1234567890abcdef"  # Optional: specific folder ID
+export GOOGLE_DRIVE_APPLICATION_NAME="Curator File Organizer"  # Optional
 ```
 
 ### CLI Usage
@@ -109,13 +115,17 @@ curator reorganize
 # Use specific AI provider and filesystem
 curator reorganize --ai-provider=gemini --filesystem=local --root=/home/user/Documents
 
+# Use Google Drive filesystem
+curator reorganize --ai-provider=gemini --filesystem=googledrive
+
 # Generate and apply plans
 curator reorganize --ai-provider=gemini > plan.txt
 curator apply reorg-XXXXXXXXX
 
 # Other operations
 curator deduplicate --filesystem=local --root=.
-curator cleanup --ai-provider=gemini
+curator cleanup --ai-provider=gemini --filesystem=googledrive
+curator rename --filesystem=googledrive
 curator rename --filesystem=local --root=/Downloads
 
 # Plan management
@@ -125,12 +135,50 @@ curator status reorg-XXXXXXXXX
 curator history
 ```
 
+## Google Drive Setup
+
+### Prerequisites
+1. **Google Cloud Project**: Create a project in [Google Cloud Console](https://console.cloud.google.com/)
+2. **Enable Drive API**: Enable Google Drive API v3 for your project
+3. **Service Account**: Create a service account with appropriate permissions
+
+### Service Account Setup
+```bash
+# 1. Create service account in Google Cloud Console
+# 2. Download JSON key file
+# 3. Set environment variable
+export GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY="/path/to/service-account-key.json"
+
+# 4. Optional: Share specific folders with service account email
+# The service account email looks like: curator@your-project.iam.gserviceaccount.com
+```
+
+### Important Notes
+- **Service Account Limitations**: Service accounts have their own Drive space, separate from user accounts
+- **Folder Sharing**: To access your personal Drive files, share folders with the service account email
+- **Permissions**: Service accounts can only access files/folders explicitly shared with them
+- **Safety**: Files are moved to trash (not permanently deleted) for safety
+
+### Example Setup
+```bash
+# Set up Google Drive filesystem
+export CURATOR_FILESYSTEM_TYPE="googledrive"
+export GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY="/home/user/service-account.json"
+
+# Optional: Organize within a specific shared folder
+export GOOGLE_DRIVE_ROOT_FOLDER_ID="1Abc123xyz789_SharedFolderID"
+
+# Run reorganization
+curator reorganize --ai-provider=gemini
+```
+
 ## Testing
 
 ### Comprehensive Test Suite ✅
-- **42 total tests** covering all major components
+- **50+ total tests** covering all major components
 - **Memory filesystem tests**: 7 tests for in-memory operations
 - **Local filesystem tests**: 8 tests including security validation
+- **Google Drive tests**: 10 tests including service account integration
 - **Execution engine tests**: 5 tests for WAL and conflict handling
 - **Mock AI tests**: 4 tests for heuristic analysis
 - **Gemini integration tests**: 7 tests including real API integration
@@ -146,9 +194,11 @@ go test -v ./...
 go test -v -run TestLocalFileSystem
 go test -v -run TestGeminiAnalyzer
 go test -v -run TestExecutionEngine
+go test -v -run TestGoogleDriveFileSystem
 
-# Run integration tests (requires GEMINI_API_KEY)
-go test -v -run TestGeminiAnalyzer_Integration
+# Run integration tests (requires API keys)
+go test -v -run TestGeminiAnalyzer_Integration  # Requires GEMINI_API_KEY
+go test -v -run TestGoogleDriveFileSystem_Integration  # Requires GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY
 ```
 
 ## Security Considerations

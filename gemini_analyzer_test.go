@@ -93,6 +93,9 @@ func TestConfig_Validate(t *testing.T) {
 		AI: AIConfig{
 			Provider: "mock",
 		},
+		FileSystem: FileSystemConfig{
+			Type: "memory",
+		},
 	}
 	
 	if err := config.Validate(); err != nil {
@@ -106,6 +109,9 @@ func TestConfig_Validate(t *testing.T) {
 			Gemini: &GeminiConfig{
 				APIKey: "test-key",
 			},
+		},
+		FileSystem: FileSystemConfig{
+			Type: "memory",
 		},
 	}
 	
@@ -121,6 +127,9 @@ func TestConfig_Validate(t *testing.T) {
 				APIKey: "",
 			},
 		},
+		FileSystem: FileSystemConfig{
+			Type: "memory",
+		},
 	}
 	
 	if err := config.Validate(); err == nil {
@@ -131,6 +140,9 @@ func TestConfig_Validate(t *testing.T) {
 	config = &Config{
 		AI: AIConfig{
 			Provider: "unknown",
+		},
+		FileSystem: FileSystemConfig{
+			Type: "memory",
 		},
 	}
 	
