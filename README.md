@@ -70,6 +70,110 @@ export CURATOR_AI_PROVIDER="gemini"
 ./curator reorganize --filesystem=local --root=~/Downloads --ai-provider=gemini
 ```
 
+### With Google Drive (Cloud Storage)
+```bash
+# Set up service account authentication
+export GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY="/path/to/service-account-key.json"
+export CURATOR_FILESYSTEM_TYPE="googledrive"
+
+# Organize your Google Drive files with AI
+./curator reorganize --ai-provider=gemini --filesystem=googledrive
+```
+
+---
+
+## 🌐 Google Drive Integration
+
+Curator can organize files directly in your Google Drive using AI analysis. Perfect for cleaning up cloud storage!
+
+### 🔧 Quick Setup
+
+#### 1. Create Google Cloud Project
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project: `curator-file-organizer`
+3. Enable **Google Drive API v3**
+
+#### 2. Create Service Account  
+1. Navigate to **"IAM & Admin" > "Service Accounts"**
+2. Click **"Create Service Account"**
+3. Name: `curator-service-account`
+4. Download the **JSON key file**
+5. Copy the **service account email** (you'll need this!)
+
+#### 3. Share Folders with Service Account
+1. Open [Google Drive](https://drive.google.com)
+2. **Right-click** the folder you want to organize
+3. Click **"Share"** 
+4. Add your **service account email** with **"Editor"** permissions
+5. Uncheck "Notify people"
+
+#### 4. Configure Curator
+```bash
+# Required: Path to your service account key
+export GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY="/path/to/your-key.json"
+
+# Required: Set filesystem type
+export CURATOR_FILESYSTEM_TYPE="googledrive"
+
+# Optional: Organize specific folder (get ID from Drive URL)
+export GOOGLE_DRIVE_ROOT_FOLDER_ID="1Abc123xyz789FolderID"
+```
+
+#### 5. Start Organizing! 
+```bash
+# Test connection
+./curator reorganize --dry-run --filesystem=googledrive
+
+# AI-powered organization  
+./curator reorganize --ai-provider=gemini --filesystem=googledrive
+
+# Other operations work too!
+./curator deduplicate --filesystem=googledrive
+./curator cleanup --filesystem=googledrive
+```
+
+### 🛠️ Troubleshooting
+
+**Common Issues:**
+
+| Error | Solution |
+|-------|----------|
+| `service account key file path is required` | Set `GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY` |
+| `failed to create Drive service` | Check key file path exists |
+| `Error 404: File not found` | Verify `GOOGLE_DRIVE_ROOT_FOLDER_ID` |
+| `Error 403: Insufficient Permission` | Share folder with service account as **Editor** |
+
+### 🔒 Security Notes
+
+- **Service accounts** have their own Drive space (separate from your personal files)
+- You must **explicitly share** folders to give access
+- Files are **moved to trash** (not permanently deleted)
+- Store key files securely: `chmod 600 /path/to/key.json`
+
+### ✅ What Can Be Organized
+
+- **Documents**: PDFs, Word docs, Google Docs
+- **Images**: Photos, screenshots, graphics  
+- **Media**: Videos, audio files
+- **Archives**: ZIP files, backups
+- **Code**: Source files, projects
+- **Google Workspace**: Sheets, Slides, Forms
+
+### 💡 Usage Examples
+
+```bash
+# Organize Downloads folder
+export GOOGLE_DRIVE_ROOT_FOLDER_ID="downloads-folder-id"
+./curator reorganize --ai-provider=gemini
+
+# Clean up work documents  
+export GOOGLE_DRIVE_ROOT_FOLDER_ID="work-docs-folder-id"
+./curator cleanup --ai-provider=gemini
+
+# Find duplicates across all shared folders
+./curator deduplicate --filesystem=googledrive
+```
+
 ---
 
 ## ✨ Features
@@ -89,7 +193,7 @@ export CURATOR_AI_PROVIDER="gemini"
 - **⚡ Conflict Handling**: Graceful handling of file system changes
 
 ### 🔧 **Flexible Configuration**
-- **Multiple Filesystems**: Memory (testing) and Local (production)
+- **Multiple Filesystems**: Memory (testing), Local (production), and Google Drive (cloud)
 - **AI Provider Choice**: Mock (development) or Gemini (production)
 - **Environment Variables**: Production-ready configuration
 - **CLI Flags**: Runtime customization
@@ -154,11 +258,12 @@ graph TD
     B --> D[AI Analyzer Interface]
     C --> E[MemoryFileSystem]
     C --> F[LocalFileSystem]
-    D --> G[MockAIAnalyzer]
-    D --> H[GeminiAnalyzer]
-    I[ExecutionEngine] --> C
-    I --> J[OperationStore]
-    K[Reporter] --> L[Text Output]
+    C --> G[GoogleDriveFileSystem]
+    D --> H[MockAIAnalyzer]
+    D --> I[GeminiAnalyzer]
+    J[ExecutionEngine] --> C
+    J --> K[OperationStore]
+    L[Reporter] --> M[Text Output]
 ```
 
 ### Implemented Phases ✅
@@ -247,8 +352,12 @@ export GEMINI_MAX_TOKENS="8192"
 export GEMINI_TIMEOUT="30s"
 
 # Filesystem Configuration  
-export CURATOR_FILESYSTEM_TYPE="local"     # or "memory"
+export CURATOR_FILESYSTEM_TYPE="local"     # or "memory" or "googledrive"
 export CURATOR_FILESYSTEM_ROOT="/path/to/organize"
+
+# Google Drive Configuration (when using googledrive)
+export GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY="/path/to/service-account-key.json"
+export GOOGLE_DRIVE_ROOT_FOLDER_ID="folder-id"  # Optional
 ```
 
 ### CLI Flags
@@ -258,6 +367,11 @@ export CURATOR_FILESYSTEM_ROOT="/path/to/organize"
   --ai-provider=gemini \
   --filesystem=local \
   --root=/home/user/Documents
+
+# Or use Google Drive
+./curator reorganize \
+  --ai-provider=gemini \
+  --filesystem=googledrive
 ```
 
 ---
