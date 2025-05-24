@@ -51,7 +51,7 @@ jobs:
             "View",        # Read file contents
             "GlobTool",    # Find files by pattern
             "GrepTool",    # Search file contents
-            "BatchTool"    # Run multiple tools in parallel
+            "BatchTool",    # Run multiple tools in parallel
 
             # Go development tools
             "Bash(go build)",
