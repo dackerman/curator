@@ -2,6 +2,7 @@ package curator
 
 import (
 	"fmt"
+	"os"
 )
 
 // CommandOptions holds common options for all commands
@@ -297,6 +298,38 @@ func OverrideConfiguration(config Configuration, aiProvider, filesystem, root st
 	
 	if root != "" {
 		config.FileSystem.Root = root
+	}
+	
+	return config
+}
+
+// PopulateConfigurationFromEnvironment fills in missing environment-dependent config values
+func PopulateConfigurationFromEnvironment(config Configuration) Configuration {
+	// Re-load the full configuration to get all environment variables
+	envConfig := LoadConfig()
+	
+	// Populate AI configuration from environment
+	if config.AI.Provider == "gemini" {
+		if envConfig.AI.Provider == "gemini" && envConfig.AI.Gemini != nil {
+			// Use the fully loaded Gemini config from environment
+			config.AI.Gemini = envConfig.AI.Gemini
+		} else if config.AI.Gemini != nil && config.AI.Gemini.APIKey == "" {
+			// Fallback: populate just the API key if Gemini config exists but key is missing
+			if apiKey := os.Getenv("GEMINI_API_KEY"); apiKey != "" {
+				config.AI.Gemini.APIKey = apiKey
+			}
+		}
+	}
+	
+	// Populate Google Drive configuration from environment
+	if config.FileSystem.Type == "googledrive" {
+		if envConfig.FileSystem.Type == "googledrive" && envConfig.FileSystem.GoogleDrive != nil {
+			// Use the fully loaded Google Drive config from environment
+			config.FileSystem.GoogleDrive = envConfig.FileSystem.GoogleDrive
+		} else if config.FileSystem.GoogleDrive == nil {
+			// Load Google Drive config from environment if not set
+			config.FileSystem.GoogleDrive = loadGoogleDriveConfig()
+		}
 	}
 	
 	return config

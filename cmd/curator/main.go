@@ -33,6 +33,7 @@ var reorganizeCmd = &cobra.Command{
 		root, _ := cmd.Flags().GetString("root")
 		
 		finalConfig := curator.OverrideConfiguration(config, aiProvider, filesystem, root)
+		finalConfig = curator.PopulateConfigurationFromEnvironment(finalConfig)
 		
 		// Create command options
 		opts, err := curator.CreateCommandOptions(finalConfig)
@@ -84,6 +85,7 @@ var listPlansCmd = &cobra.Command{
 		root, _ := cmd.Flags().GetString("root")
 		
 		finalConfig := curator.OverrideConfiguration(config, aiProvider, filesystem, root)
+		finalConfig = curator.PopulateConfigurationFromEnvironment(finalConfig)
 		
 		// Create command options
 		opts, err := curator.CreateCommandOptions(finalConfig)
@@ -115,6 +117,7 @@ var showPlanCmd = &cobra.Command{
 		root, _ := cmd.Flags().GetString("root")
 		
 		finalConfig := curator.OverrideConfiguration(config, aiProvider, filesystem, root)
+		finalConfig = curator.PopulateConfigurationFromEnvironment(finalConfig)
 		
 		// Create command options
 		opts, err := curator.CreateCommandOptions(finalConfig)
@@ -149,6 +152,7 @@ var applyCmd = &cobra.Command{
 		root, _ := cmd.Flags().GetString("root")
 		
 		finalConfig := curator.OverrideConfiguration(config, aiProvider, filesystem, root)
+		finalConfig = curator.PopulateConfigurationFromEnvironment(finalConfig)
 		
 		// Create command options
 		opts, err := curator.CreateCommandOptions(finalConfig)
@@ -186,6 +190,7 @@ var statusCmd = &cobra.Command{
 		root, _ := cmd.Flags().GetString("root")
 		
 		finalConfig := curator.OverrideConfiguration(config, aiProvider, filesystem, root)
+		finalConfig = curator.PopulateConfigurationFromEnvironment(finalConfig)
 		
 		// Create command options
 		opts, err := curator.CreateCommandOptions(finalConfig)
@@ -214,6 +219,7 @@ var historyCmd = &cobra.Command{
 		root, _ := cmd.Flags().GetString("root")
 		
 		finalConfig := curator.OverrideConfiguration(config, aiProvider, filesystem, root)
+		finalConfig = curator.PopulateConfigurationFromEnvironment(finalConfig)
 		
 		// Create command options
 		opts, err := curator.CreateCommandOptions(finalConfig)
@@ -258,6 +264,7 @@ var deduplicateCmd = &cobra.Command{
 		root, _ := cmd.Flags().GetString("root")
 		
 		finalConfig := curator.OverrideConfiguration(config, aiProvider, filesystem, root)
+		finalConfig = curator.PopulateConfigurationFromEnvironment(finalConfig)
 		
 		// Create command options
 		opts, err := curator.CreateCommandOptions(finalConfig)
@@ -298,6 +305,7 @@ var cleanupCmd = &cobra.Command{
 		root, _ := cmd.Flags().GetString("root")
 		
 		finalConfig := curator.OverrideConfiguration(config, aiProvider, filesystem, root)
+		finalConfig = curator.PopulateConfigurationFromEnvironment(finalConfig)
 		
 		// Create command options
 		opts, err := curator.CreateCommandOptions(finalConfig)
@@ -339,6 +347,7 @@ var renameCmd = &cobra.Command{
 		root, _ := cmd.Flags().GetString("root")
 		
 		finalConfig := curator.OverrideConfiguration(config, aiProvider, filesystem, root)
+		finalConfig = curator.PopulateConfigurationFromEnvironment(finalConfig)
 		
 		// Create command options
 		opts, err := curator.CreateCommandOptions(finalConfig)

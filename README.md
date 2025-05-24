@@ -68,7 +68,6 @@ go build -o curator ./cmd/curator
 ```bash
 # Set up Gemini AI for intelligent analysis
 export GEMINI_API_KEY="your-api-key"
-export CURATOR_AI_PROVIDER="gemini"
 
 # Analyze your Downloads folder
 ./curator reorganize --filesystem=local --root=~/Downloads --ai-provider=gemini
@@ -76,104 +75,61 @@ export CURATOR_AI_PROVIDER="gemini"
 
 ### With Google Drive (Cloud Storage)
 ```bash
-# Set up OAuth2 authentication for your personal Google Drive
+# Set up OAuth2 authentication for your personal Google Drive (credentials are sensitive)
 export GOOGLE_DRIVE_OAUTH_CREDENTIALS="/path/to/oauth-credentials.json"
-export CURATOR_FILESYSTEM_TYPE="googledrive"
 
 # Organize your entire Google Drive with AI (browser auth on first run)
 ./curator reorganize --ai-provider=gemini --filesystem=googledrive
 ```
 
----
+5. **Export environment variables**
 
-## 🌐 Google Drive Integration
-
-Curator can organize files directly in your **entire personal Google Drive** using AI analysis. Perfect for cleaning up cloud storage with full access to all your files!
-
-### 🔧 Quick Setup
-
-#### 1. Create Google Cloud Project
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select an existing one
-3. Note your project ID for reference
-
-#### 2. Enable Google Drive API
-1. In the Google Cloud Console, go to **"APIs & Services" > "Library"**
-2. Search for **"Google Drive API"**
-3. Click on **"Google Drive API v3"** and click **"Enable"**
-
-#### 3. Create OAuth2 Credentials
-1. Go to **"APIs & Services" > "Credentials"**
-2. Click **"Create Credentials" > "OAuth 2.0 Client IDs"**
-3. If prompted, configure the OAuth consent screen:
-   - Choose **"External"** user type
-   - Fill in required fields (App name: "Curator File Organizer")
-   - Add your email to test users
-4. For application type, select **"Desktop application"**
-5. Name it `curator-oauth-client` (or similar)
-6. Click **"Create"**
-7. **Download the JSON credentials file** - this contains your OAuth2 configuration
-
-#### 4. Configure Curator
 ```bash
-# Required: Path to your OAuth2 credentials file
-export GOOGLE_DRIVE_OAUTH_CREDENTIALS="/path/to/oauth-credentials.json"
-
-# Required: Set filesystem type
-export CURATOR_FILESYSTEM_TYPE="googledrive"
-
-# Optional: Store tokens in custom location (defaults to ~/.curator/google_tokens.json)
-export GOOGLE_DRIVE_OAUTH_TOKENS="/path/to/tokens.json"
-
-# Optional: Organize within a specific folder (defaults to entire Drive)
-export GOOGLE_DRIVE_ROOT_FOLDER_ID="1Abc123xyz789FolderID"
+# Required: path to your OAuth credentials JSON
+export GOOGLE_DRIVE_OAUTH_CREDENTIALS=~/curator/credentials.json
+# Optional (recommended if you'll always use Drive):
+export CURATOR_FILESYSTEM_TYPE=googledrive
+# Optional extras:
+export GOOGLE_DRIVE_OAUTH_TOKENS=~/.curator/google_tokens.json
+export GOOGLE_DRIVE_ROOT_FOLDER_ID=your_folder_id
 ```
 
-#### 5. First-Time Authentication
+*If you don't set `CURATOR_FILESYSTEM_TYPE`, just add `--filesystem=googledrive` when you run a command. Both approaches work—pick whichever feels easier.*
+
+6. **Authenticate once**
+
 ```bash
-# Run Curator - browser will open automatically for Google authorization
+# Uses mock AI so you don't burn tokens on the first run
 ./curator reorganize --ai-provider=mock --filesystem=googledrive
 ```
 
-**What happens:**
-1. 🌐 Your browser opens to Google's authorization page
-2. 🔐 You log in with your Google account 
-3. ✅ You grant Curator permission to access your Drive
-4. 💾 Curator saves authentication tokens locally
-5. 🚀 File analysis begins immediately
+You will see a URL; it opens automatically. Log in → "Allow" → success message in terminal.
 
-#### 6. Subsequent Usage (No Browser Needed)
+7. **Run with Gemini**
+
 ```bash
-# Future runs work seamlessly without browser popups
 ./curator reorganize --ai-provider=gemini --filesystem=googledrive
-
-# Organize with specific folder 
-GOOGLE_DRIVE_ROOT_FOLDER_ID="your_folder_id" ./curator reorganize
-
-# Other operations work too!
-./curator deduplicate --filesystem=googledrive
-./curator cleanup --filesystem=googledrive
 ```
+
+> **Tip**: To target a single Drive folder, set `GOOGLE_DRIVE_ROOT_FOLDER_ID` before the command.
 
 ### 🛠️ Troubleshooting
 
-**Common Issues:**
+**Common issues and quick fixes**
 
 | Error | Solution |
 |-------|----------|
 | `OAuth2 credentials file path is required` | Set `GOOGLE_DRIVE_OAUTH_CREDENTIALS` |
-| `failed to read OAuth2 credentials file` | Check credentials file path exists |
-| `Browser doesn't open automatically` | Copy the displayed URL and open manually |
-| `Error 404: File not found` | Verify `GOOGLE_DRIVE_ROOT_FOLDER_ID` if set |
+| `failed to read OAuth2 credentials file` | Verify the JSON path is correct |
+| `Browser doesn't open automatically` | Copy the displayed URL into your browser |
+| `Error 404: File not found` | Check `GOOGLE_DRIVE_ROOT_FOLDER_ID` if set |
 | `Token refresh failed` | Delete `~/.curator/google_tokens.json` and re-authenticate |
 
 ### 🔒 Security Notes
 
-- **OAuth2 authentication** gives access to your **entire personal Google Drive**
-- **Tokens stored locally** in `~/.curator/google_tokens.json` (secure file permissions)
-- Files are **moved to trash** (not permanently deleted) for safety
-- **Revoke access anytime** in [Google Account Security](https://myaccount.google.com/permissions)
-- Store credentials securely: `chmod 600 /path/to/oauth-credentials.json`
+- OAuth tokens are stored locally in `~/.curator/google_tokens.json` (0600 permissions)
+- Curator only moves files to the Drive Trash (non-destructive)
+- You can revoke access anytime in your Google Account under Security → "Third-party access"
 
 ### ✅ What Can Be Organized
 
