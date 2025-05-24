@@ -57,6 +57,5 @@ jobs:
             "Bash(go build)",
             "Bash(go test)",
             "Bash(go mod)",
-            "Bash(go 
             ]
 
