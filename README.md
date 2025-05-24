@@ -60,6 +60,9 @@ Currently in Phase 1 development - building core infrastructure:
 - ✅ Basic CLI structure
 - ✅ Unit tests for core functionality
 
+
+next, phase 2
+
 See [docs/spec.md](docs/spec.md) for full project specification and roadmap.
 
 ## Contributing
