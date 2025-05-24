@@ -4,8 +4,35 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/dackerman/curator"
 	"github.com/spf13/cobra"
 )
+
+// Global components
+var (
+	fs       curator.FileSystem
+	store    curator.OperationStore
+	analyzer curator.AIAnalyzer
+	engine   *curator.ExecutionEngine
+	reporter *curator.Reporter
+)
+
+
+func setupSampleFiles() {
+	mfs := fs.(*curator.MemoryFileSystem)
+	
+	// Add some sample files to demonstrate the functionality
+	mfs.AddFile("/document1.pdf", []byte("Sample PDF content"), "application/pdf")
+	mfs.AddFile("/image1.jpg", []byte("Sample image content"), "image/jpeg")
+	mfs.AddFile("/video1.mp4", []byte("Sample video content"), "video/mp4")
+	mfs.AddFile("/code.go", []byte("package main\n\nfunc main() {}"), "text/plain")
+	mfs.AddFile("/temp_file.tmp", []byte("temporary"), "text/plain")
+	mfs.AddFile("/My Document.pdf", []byte("Another document"), "application/pdf")
+	mfs.AddFile("/Photo With Spaces.jpg", []byte("Photo content"), "image/jpeg")
+	mfs.AddFile("/empty_file.txt", []byte(""), "text/plain")
+	mfs.AddFile("/backup.bak", []byte("backup content"), "text/plain")
+	mfs.AddFile("/Downloads/random_download.zip", []byte("zip content"), "application/zip")
+}
 
 var rootCmd = &cobra.Command{
 	Use:   "curator",
@@ -21,19 +48,86 @@ var reorganizeCmd = &cobra.Command{
 	Long:  `Scans the filesystem, analyzes structure, and generates a reorganization plan`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
-		exclude, _ := cmd.Flags().GetString("exclude")
+		_, _ = cmd.Flags().GetString("exclude") // exclude not yet implemented
 		
-		fmt.Printf("Reorganizing filesystem (dry-run: %v, exclude: %s)\n", dryRun, exclude)
-		fmt.Println("This is a placeholder - AI analysis not yet implemented")
+		// For now, always operate on root "/"
+		// In the future, this could be configurable
+		path := "/"
+		
+		fmt.Printf("Scanning filesystem at %s...\n", path)
+		
+		// List all files
+		_, err := fs.List(path)
+		if err != nil {
+			return fmt.Errorf("failed to list files: %w", err)
+		}
+		
+		// Get all files recursively
+		allFiles, err := getAllFilesRecursively(fs, path)
+		if err != nil {
+			return fmt.Errorf("failed to get all files: %w", err)
+		}
+		
+		fmt.Printf("Found %d files to analyze...\n", len(allFiles))
+		
+		// Generate reorganization plan
+		plan, err := analyzer.AnalyzeForReorganization(allFiles)
+		if err != nil {
+			return fmt.Errorf("failed to analyze files: %w", err)
+		}
+		
+		// Save the plan
+		if err := store.SavePlan(plan); err != nil {
+			return fmt.Errorf("failed to save plan: %w", err)
+		}
+		
+		// Display the plan
+		fmt.Println()
+		fmt.Print(reporter.FormatReorganizationPlan(plan))
+		
+		if !dryRun {
+			fmt.Printf("\nPlan saved with ID: %s\n", plan.ID)
+		}
+		
 		return nil
 	},
+}
+
+// Helper function to get all files recursively
+func getAllFilesRecursively(fs curator.FileSystem, root string) ([]curator.FileInfo, error) {
+	var allFiles []curator.FileInfo
+	
+	var traverse func(string) error
+	traverse = func(path string) error {
+		files, err := fs.List(path)
+		if err != nil {
+			return err
+		}
+		
+		for _, file := range files {
+			allFiles = append(allFiles, file)
+			if file.IsDir() {
+				if err := traverse(file.Path()); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	
+	return allFiles, traverse(root)
 }
 
 var listPlansCmd = &cobra.Command{
 	Use:   "list-plans",
 	Short: "List all reorganization plans",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Println("Listing plans - not yet implemented")
+		summaries, err := store.ListPlans()
+		if err != nil {
+			return fmt.Errorf("failed to list plans: %w", err)
+		}
+		
+		fmt.Print(reporter.FormatPlanSummaries(summaries))
 		return nil
 	},
 }
@@ -44,7 +138,12 @@ var showPlanCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		planID := args[0]
-		fmt.Printf("Showing plan %s - not yet implemented\n", planID)
+		plan, err := store.GetPlan(planID)
+		if err != nil {
+			return fmt.Errorf("failed to get plan: %w", err)
+		}
+		
+		fmt.Print(reporter.FormatReorganizationPlan(plan))
 		return nil
 	},
 }
@@ -57,7 +156,22 @@ var applyCmd = &cobra.Command{
 		planID := args[0]
 		failFast, _ := cmd.Flags().GetBool("fail-fast")
 		
-		fmt.Printf("Applying plan %s (fail-fast: %v) - not yet implemented\n", planID, failFast)
+		fmt.Printf("Executing plan %s...\n", planID)
+		
+		// Resume any pending operations first
+		if err := engine.ResumePendingOperations(); err != nil {
+			fmt.Printf("Warning: failed to resume pending operations: %v\n", err)
+		}
+		
+		// Execute the plan
+		execLog, err := engine.ExecutePlan(planID, failFast)
+		if err != nil {
+			return fmt.Errorf("failed to execute plan: %w", err)
+		}
+		
+		// Display execution results
+		fmt.Println()
+		fmt.Print(reporter.FormatExecutionLog(execLog))
 		return nil
 	},
 }
@@ -68,7 +182,12 @@ var statusCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		planID := args[0]
-		fmt.Printf("Checking status of plan %s - not yet implemented\n", planID)
+		execLog, err := engine.GetExecutionStatus(planID)
+		if err != nil {
+			return fmt.Errorf("failed to get execution status: %w", err)
+		}
+		
+		fmt.Print(reporter.FormatExecutionLog(execLog))
 		return nil
 	},
 }
@@ -77,7 +196,12 @@ var historyCmd = &cobra.Command{
 	Use:   "history",
 	Short: "Show execution history",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Println("Showing execution history - not yet implemented")
+		logs, err := store.GetExecutionHistory()
+		if err != nil {
+			return fmt.Errorf("failed to get execution history: %w", err)
+		}
+		
+		fmt.Print(reporter.FormatExecutionHistory(logs))
 		return nil
 	},
 }
@@ -88,7 +212,8 @@ var rollbackCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		planID := args[0]
-		fmt.Printf("Rolling back plan %s - not yet implemented\n", planID)
+		fmt.Printf("Rollback functionality not yet implemented for plan %s\n", planID)
+		fmt.Println("This will be implemented in a future phase.")
 		return nil
 	},
 }
@@ -97,8 +222,21 @@ var deduplicateCmd = &cobra.Command{
 	Use:   "deduplicate",
 	Short: "Find and remove duplicate files",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		dryRun, _ := cmd.Flags().GetBool("dry-run")
-		fmt.Printf("Finding duplicates (dry-run: %v) - not yet implemented\n", dryRun)
+		_, _ = cmd.Flags().GetBool("dry-run") // dry-run not yet implemented for duplicates
+		
+		fmt.Println("Scanning for duplicate files...")
+		
+		allFiles, err := getAllFilesRecursively(fs, "/")
+		if err != nil {
+			return fmt.Errorf("failed to get all files: %w", err)
+		}
+		
+		report, err := analyzer.AnalyzeForDuplicates(allFiles)
+		if err != nil {
+			return fmt.Errorf("failed to analyze duplicates: %w", err)
+		}
+		
+		fmt.Print(reporter.FormatDuplicationReport(report))
 		return nil
 	},
 }
@@ -107,8 +245,21 @@ var cleanupCmd = &cobra.Command{
 	Use:   "cleanup",
 	Short: "Clean up junk and unnecessary files",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		dryRun, _ := cmd.Flags().GetBool("dry-run")
-		fmt.Printf("Cleaning up files (dry-run: %v) - not yet implemented\n", dryRun)
+		_, _ = cmd.Flags().GetBool("dry-run") // dry-run not yet implemented for cleanup
+		
+		fmt.Println("Scanning for junk files...")
+		
+		allFiles, err := getAllFilesRecursively(fs, "/")
+		if err != nil {
+			return fmt.Errorf("failed to get all files: %w", err)
+		}
+		
+		plan, err := analyzer.AnalyzeForCleanup(allFiles)
+		if err != nil {
+			return fmt.Errorf("failed to analyze cleanup: %w", err)
+		}
+		
+		fmt.Print(reporter.FormatCleanupPlan(plan))
 		return nil
 	},
 }
@@ -117,14 +268,57 @@ var renameCmd = &cobra.Command{
 	Use:   "rename",
 	Short: "Standardize file naming conventions",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		dryRun, _ := cmd.Flags().GetBool("dry-run")
-		pattern, _ := cmd.Flags().GetString("pattern")
-		fmt.Printf("Renaming files (dry-run: %v, pattern: %s) - not yet implemented\n", dryRun, pattern)
+		_, _ = cmd.Flags().GetBool("dry-run") // dry-run not yet implemented for rename
+		_, _ = cmd.Flags().GetString("pattern") // pattern not yet implemented
+		
+		fmt.Println("Scanning for files to rename...")
+		
+		allFiles, err := getAllFilesRecursively(fs, "/")
+		if err != nil {
+			return fmt.Errorf("failed to get all files: %w", err)
+		}
+		
+		plan, err := analyzer.AnalyzeForRenaming(allFiles)
+		if err != nil {
+			return fmt.Errorf("failed to analyze renaming: %w", err)
+		}
+		
+		// Simple text output for renaming plan
+		fmt.Printf("\nRENAMING PLAN\n")
+		fmt.Printf("=============\n")
+		fmt.Printf("Plan ID: %s\n", plan.ID)
+		fmt.Printf("Generated: %s\n\n", plan.Timestamp.Format("2006-01-02 15:04:05"))
+		
+		if len(plan.Renames) == 0 {
+			fmt.Println("🎉 All files already follow consistent naming conventions!")
+		} else {
+			fmt.Printf("Files to rename: %d\n", len(plan.Renames))
+			fmt.Printf("Pattern: %s\n\n", plan.Summary.Pattern)
+			
+			for i, rename := range plan.Renames {
+				if i >= 10 {
+					fmt.Printf("\n[... %d more files to rename ...]\n", len(plan.Renames)-10)
+					break
+				}
+				fmt.Printf("• %s → %s\n", rename.OldName, rename.NewName)
+			}
+		}
+		
 		return nil
 	},
 }
 
 func init() {
+	// Initialize components
+	fs = curator.NewMemoryFileSystem()
+	store = curator.NewMemoryOperationStore()
+	analyzer = curator.NewMockAIAnalyzer()
+	engine = curator.NewExecutionEngine(fs, store)
+	reporter = curator.NewReporter()
+	
+	// Add some sample files for testing
+	setupSampleFiles()
+	
 	// Global flags
 	reorganizeCmd.Flags().Bool("dry-run", false, "Generate plan without executing")
 	reorganizeCmd.Flags().String("exclude", "", "Comma-separated list of patterns to exclude")
