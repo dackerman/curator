@@ -1,4 +1,4 @@
-# Google Drive AI Organizer - Project Specification
+# Curator - Project Specification
 
 ## Project Overview
 
@@ -54,7 +54,7 @@ A Go-based tool that uses AI to intelligently reorganize file systems (starting 
 ### Core Interfaces
 
 ```go
-package organizer
+package curator
 
 import (
     "io"
@@ -208,36 +208,36 @@ DETAILED OPERATIONS (showing first 10 of 234)
 
 [... more operations ...]
 
-Type 'gdrive-organize apply reorg-2024-01-15-143052' to execute this plan
-Type 'gdrive-organize export reorg-2024-01-15-143052' to save as JSON
+Type 'curator apply reorg-2024-01-15-143052' to execute this plan
+Type 'curator export reorg-2024-01-15-143052' to save as JSON
 ```
 
 ## CLI Interface
 
 ```bash
 # Analyze and generate plan
-gdrive-organize reorganize --dry-run
-gdrive-organize reorganize --exclude="/Private/*,/Work Confidential/*"
+curator reorganize --dry-run
+curator reorganize --exclude="/Private/*,/Work Confidential/*"
 
 # Review plans
-gdrive-organize list-plans
-gdrive-organize show-plan <plan-id>
+curator list-plans
+curator show-plan <plan-id>
 
 # Execute plans
-gdrive-organize apply <plan-id>
-gdrive-organize apply <plan-id> --fail-fast
+curator apply <plan-id>
+curator apply <plan-id> --fail-fast
 
 # Check status and history
-gdrive-organize status <plan-id>
-gdrive-organize history
+curator status <plan-id>
+curator history
 
 # Rollback
-gdrive-organize rollback <plan-id>
+curator rollback <plan-id>
 
 # Other operations
-gdrive-organize deduplicate --dry-run
-gdrive-organize cleanup --dry-run
-gdrive-organize rename --pattern="consistent-naming" --dry-run
+curator deduplicate --dry-run
+curator cleanup --dry-run
+curator rename --pattern="consistent-naming" --dry-run
 ```
 
 ## Implementation Roadmap
