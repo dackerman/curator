@@ -19,8 +19,7 @@ var (
 )
 
 
-func setupSampleFiles() {
-	mfs := fs.(*curator.MemoryFileSystem)
+func setupSampleFiles(mfs *curator.MemoryFileSystem) {
 	
 	// Add some sample files to demonstrate the functionality
 	mfs.AddFile("/document1.pdf", []byte("Sample PDF content"), "application/pdf")
@@ -55,10 +54,17 @@ var reorganizeCmd = &cobra.Command{
 		// In the future, this could be configurable
 		path := "/"
 		
+		// Get filesystem
+		fs, err := getFileSystem(cmd)
+		if err != nil {
+			return fmt.Errorf("failed to create filesystem: %w", err)
+		}
+		
 		fmt.Printf("Scanning filesystem at %s...\n", path)
+		fmt.Printf("Using %s filesystem...\n", config.FileSystem.Type)
 		
 		// List all files
-		_, err := fs.List(path)
+		_, err = fs.List(path)
 		if err != nil {
 			return fmt.Errorf("failed to list files: %w", err)
 		}
@@ -152,6 +158,32 @@ func getAnalyzer(cmd *cobra.Command) (curator.AIAnalyzer, error) {
 	
 	// Create analyzer
 	return config.CreateAnalyzer()
+}
+
+// getFileSystem creates a filesystem based on configuration and command flags
+func getFileSystem(cmd *cobra.Command) (curator.FileSystem, error) {
+	// Check if filesystem type is overridden via flag
+	if fsType, _ := cmd.Flags().GetString("filesystem"); fsType != "" {
+		config.FileSystem.Type = fsType
+	}
+	
+	// Check if root path is overridden via flag
+	if root, _ := cmd.Flags().GetString("root"); root != "" {
+		config.FileSystem.Root = root
+	}
+	
+	// Create filesystem
+	fs, err := config.CreateFileSystem()
+	if err != nil {
+		return nil, err
+	}
+	
+	// If using memory filesystem, add sample files for testing
+	if config.FileSystem.Type == "memory" {
+		setupSampleFiles(fs.(*curator.MemoryFileSystem))
+	}
+	
+	return fs, nil
 }
 
 var listPlansCmd = &cobra.Command{
@@ -262,6 +294,14 @@ var deduplicateCmd = &cobra.Command{
 		
 		fmt.Println("Scanning for duplicate files...")
 		
+		// Get filesystem
+		fs, err := getFileSystem(cmd)
+		if err != nil {
+			return fmt.Errorf("failed to create filesystem: %w", err)
+		}
+		
+		fmt.Printf("Using %s filesystem...\n", config.FileSystem.Type)
+		
 		allFiles, err := getAllFilesRecursively(fs, "/")
 		if err != nil {
 			return fmt.Errorf("failed to get all files: %w", err)
@@ -297,6 +337,14 @@ var cleanupCmd = &cobra.Command{
 		_, _ = cmd.Flags().GetBool("dry-run") // dry-run not yet implemented for cleanup
 		
 		fmt.Println("Scanning for junk files...")
+		
+		// Get filesystem
+		fs, err := getFileSystem(cmd)
+		if err != nil {
+			return fmt.Errorf("failed to create filesystem: %w", err)
+		}
+		
+		fmt.Printf("Using %s filesystem...\n", config.FileSystem.Type)
 		
 		allFiles, err := getAllFilesRecursively(fs, "/")
 		if err != nil {
@@ -334,6 +382,14 @@ var renameCmd = &cobra.Command{
 		_, _ = cmd.Flags().GetString("pattern") // pattern not yet implemented
 		
 		fmt.Println("Scanning for files to rename...")
+		
+		// Get filesystem
+		fs, err := getFileSystem(cmd)
+		if err != nil {
+			return fmt.Errorf("failed to create filesystem: %w", err)
+		}
+		
+		fmt.Printf("Using %s filesystem...\n", config.FileSystem.Type)
 		
 		allFiles, err := getAllFilesRecursively(fs, "/")
 		if err != nil {
@@ -387,17 +443,14 @@ func init() {
 	// Load configuration
 	config = curator.LoadConfig()
 	
-	// Initialize components
-	fs = curator.NewMemoryFileSystem()
+	// Initialize components (filesystem will be created per-command based on config)
 	store = curator.NewMemoryOperationStore()
 	reporter = curator.NewReporter()
-	engine = curator.NewExecutionEngine(fs, store)
-	
-	// Add some sample files for testing
-	setupSampleFiles()
 	
 	// Add global flags
 	rootCmd.PersistentFlags().String("ai-provider", "", "AI provider to use (mock, gemini) - overrides CURATOR_AI_PROVIDER")
+	rootCmd.PersistentFlags().String("filesystem", "", "Filesystem type to use (memory, local) - overrides CURATOR_FILESYSTEM_TYPE")
+	rootCmd.PersistentFlags().String("root", "", "Root path for local filesystem - overrides CURATOR_FILESYSTEM_ROOT")
 	
 	// Global flags
 	reorganizeCmd.Flags().Bool("dry-run", false, "Generate plan without executing")

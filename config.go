@@ -9,7 +9,8 @@ import (
 
 // Config holds all configuration for the curator application
 type Config struct {
-	AI AIConfig `json:"ai"`
+	AI         AIConfig         `json:"ai"`
+	FileSystem FileSystemConfig `json:"filesystem"`
 }
 
 // AIConfig holds AI-related configuration
@@ -18,11 +19,21 @@ type AIConfig struct {
 	Gemini   *GeminiConfig  `json:"gemini,omitempty"`
 }
 
+// FileSystemConfig holds filesystem-related configuration
+type FileSystemConfig struct {
+	Type string `json:"type"` // "memory" or "local"
+	Root string `json:"root"` // Root path for local filesystem
+}
+
 // LoadConfig loads configuration from environment variables and defaults
 func LoadConfig() *Config {
 	config := &Config{
 		AI: AIConfig{
 			Provider: getEnvOrDefault("CURATOR_AI_PROVIDER", "mock"),
+		},
+		FileSystem: FileSystemConfig{
+			Type: getEnvOrDefault("CURATOR_FILESYSTEM_TYPE", "memory"),
+			Root: getEnvOrDefault("CURATOR_FILESYSTEM_ROOT", "."),
 		},
 	}
 	
@@ -80,12 +91,24 @@ func (c *Config) CreateAnalyzer() (AIAnalyzer, error) {
 	}
 }
 
+// CreateFileSystem creates a filesystem based on configuration
+func (c *Config) CreateFileSystem() (FileSystem, error) {
+	switch c.FileSystem.Type {
+	case "memory":
+		return NewMemoryFileSystem(), nil
+	case "local":
+		return NewLocalFileSystem(c.FileSystem.Root)
+	default:
+		return nil, fmt.Errorf("unknown filesystem type: %s", c.FileSystem.Type)
+	}
+}
+
 // Validate validates the configuration
 func (c *Config) Validate() error {
+	// Validate AI config
 	switch c.AI.Provider {
 	case "mock":
 		// Mock analyzer needs no validation
-		return nil
 	case "gemini":
 		if c.AI.Gemini == nil {
 			return fmt.Errorf("Gemini configuration is required when provider is 'gemini'")
@@ -93,10 +116,23 @@ func (c *Config) Validate() error {
 		if c.AI.Gemini.APIKey == "" {
 			return fmt.Errorf("Gemini API key is required (set GEMINI_API_KEY environment variable)")
 		}
-		return nil
 	default:
 		return fmt.Errorf("unknown AI provider: %s (valid options: mock, gemini)", c.AI.Provider)
 	}
+	
+	// Validate filesystem config
+	switch c.FileSystem.Type {
+	case "memory":
+		// Memory filesystem needs no validation
+	case "local":
+		if c.FileSystem.Root == "" {
+			return fmt.Errorf("local filesystem root path is required")
+		}
+	default:
+		return fmt.Errorf("unknown filesystem type: %s (valid options: memory, local)", c.FileSystem.Type)
+	}
+	
+	return nil
 }
 
 // getEnvOrDefault returns environment variable value or default if not set
